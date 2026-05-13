@@ -7,6 +7,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Per-tool guidance overrides for `web_search` and `web_fetch` via `~/.config/rpiv-web-tools/config.json`.
+
+### Changed
+- README documents the nested guidance shape and `web_fetch` reach.
+
 ## [1.5.1] - 2026-05-13
 
 ## [1.5.0] - 2026-05-12
