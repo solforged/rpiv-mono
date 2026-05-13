@@ -103,6 +103,34 @@ First match wins:
 1. `BRAVE_SEARCH_API_KEY` environment variable
 2. `apiKey` field in `~/.config/rpiv-web-tools/config.json`
 
+## Executor guidance overrides
+
+Override the `promptSnippet` / `promptGuidelines` the model sees for each tool by editing `~/.config/rpiv-web-tools/config.json`. Note the per-tool nesting under `guidance.web_search` / `guidance.web_fetch` — this differs from the flat `guidance` shape used by single-tool siblings (`rpiv-advisor`, `rpiv-todo`, `rpiv-ask-user-question`):
+
+```json
+{
+  "apiKey": "sk-...",
+  "guidance": {
+    "web_search": {
+      "promptSnippet": "Search Brave for current docs and library versions",
+      "promptGuidelines": [
+        "Only call web_search when training-data answers may be stale.",
+        "Always include a Sources: section with markdown hyperlinks."
+      ]
+    },
+    "web_fetch": {
+      "promptSnippet": "Fetch a specific URL and read its content"
+    }
+  }
+}
+```
+
+Each field is independent: omit one and the built-in default is kept. Invalid values (empty string, wrong type, empty array) silently fall back to defaults. Changes take effect on the next Pi session start.
+
+## Security note: `web_fetch` reach
+
+`web_fetch` accepts any http/https URL the model passes, including loopback (`127.0.0.1`, `::1`) and private-range addresses (RFC 1918, link-local, cloud metadata at `169.254.169.254`). This is intentional — local dev servers and intranet docs are common legitimate targets in a single-user CLI. If you run Pi in an untrusted automation context where the model could be steered toward internal services, restrict the tool at the network layer (firewall, egress proxy) or fork to add a host filter; the package ships without one.
+
 ## License
 
 MIT
