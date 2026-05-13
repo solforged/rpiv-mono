@@ -33,3 +33,17 @@ const icon = await sharp(Buffer.from(iconSvg)).png().toBuffer();
 const iconOut = resolve(publicDir, "apple-touch-icon.png");
 writeFileSync(iconOut, icon);
 console.log(`wrote ${iconOut} (${icon.length} bytes)`);
+
+// Full-bleed square for X `summary` cards. X (and most surfaces) re-clip the
+// thumbnail with their own rounded mask, so the source must fill every pixel
+// with opaque background — any baked rounded corners or transparency show
+// through as white wedges around the final preview.
+const squareSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+	<rect width="1024" height="1024" fill="#1c1a17"/>
+	<text x="512" y="712" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="680" font-weight="600" fill="${ochre}">π</text>
+</svg>`;
+
+const square = await sharp(Buffer.from(squareSvg)).flatten({ background: ink }).png().toBuffer();
+const squareOut = resolve(publicDir, "og-square.png");
+writeFileSync(squareOut, square);
+console.log(`wrote ${squareOut} (${square.length} bytes)`);
