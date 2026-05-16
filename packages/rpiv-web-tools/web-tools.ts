@@ -171,6 +171,22 @@ function clampSearchResultCount(requested: number | undefined): number {
 // URL guard
 // ---------------------------------------------------------------------------
 
+function isPrivateOrLoopbackHostname(hostname: string): boolean {
+	const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+	if (h === "localhost" || h.endsWith(".localhost")) return true;
+	// IPv6 loopback / unspecified / link-local / unique-local
+	if (h === "::1" || h === "::" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return true;
+	// IPv4 literals
+	const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+	if (!v4) return false;
+	const [a, b] = [Number(v4[1]), Number(v4[2])];
+	if (a === 0 || a === 127 || a === 10) return true; // 0.0.0.0/8, loopback, RFC1918
+	if (a === 169 && b === 254) return true; // link-local (incl. AWS metadata 169.254.169.254)
+	if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918 172.16.0.0/12
+	if (a === 192 && b === 168) return true; // RFC1918 192.168.0.0/16
+	return false;
+}
+
 function parseAndAssertHttpUrl(raw: string): URL {
 	let parsed: URL;
 	try {
@@ -180,6 +196,9 @@ function parseAndAssertHttpUrl(raw: string): URL {
 	}
 	if (!SUPPORTED_HTTP_PROTOCOLS.has(parsed.protocol)) {
 		throw new Error(`Unsupported URL protocol: ${parsed.protocol}. Only http and https are supported.`);
+	}
+	if (isPrivateOrLoopbackHostname(parsed.hostname)) {
+		throw new Error(`Refusing to fetch private/loopback address: ${parsed.hostname}`);
 	}
 	return parsed;
 }
@@ -490,8 +509,11 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 				return;
 			}
 
-			const cleanLabel = selectedLabel.replace(/\s*(?:✓|\(configured\))\s*/g, " ").trim();
-			const selectedMeta = PROVIDERS.find((p) => p.label === cleanLabel);
+			// Match by prefix on the original provider label — robust to any marker
+			// suffix (✓, (configured), or any future additions to labelOf above).
+			const selectedMeta = PROVIDERS.find(
+				(p) => selectedLabel === p.label || selectedLabel.startsWith(`${p.label} `),
+			);
 			if (!selectedMeta) {
 				ctx.ui.notify("Web search config unchanged", "info");
 				return;
@@ -501,7 +523,7 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 			const existingKey =
 				current.apiKeys?.[selectedProvider] ?? (selectedProvider === "brave" ? current.apiKey : undefined);
 			const input = await ctx.ui.input(
-				`${selectedLabel} API key`,
+				`${selectedMeta.label} API key`,
 				existingKey ? `Press Enter to keep current (${maskApiKey(existingKey)}), or type new key` : "...",
 			);
 
@@ -526,8 +548,8 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 			saveConfig(toSave);
 			ctx.ui.notify(
 				trimmed
-					? `Saved ${selectedLabel} API key to ${CONFIG_PATH}`
-					: `Active provider set to ${selectedLabel}; existing key kept`,
+					? `Saved ${selectedMeta.label} API key to ${CONFIG_PATH}`
+					: `Active provider set to ${selectedMeta.label}; existing key kept`,
 				"info",
 			);
 		},

@@ -259,6 +259,27 @@ describe("web_search.execute — provider-independent behavior", () => {
 		expect(stub.calls[0].url).toContain("api.search.brave.com");
 	});
 
+	it("treats empty-string env key as unset", async () => {
+		process.env.EXA_API_KEY = "";
+		writeConfig({ provider: "exa", apiKeys: { exa: "" } });
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_search")
+				?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/EXA_API_KEY is not set/);
+	});
+
+	it("treats empty-string legacy brave apiKey as unset", async () => {
+		writeConfig({ provider: "brave", apiKey: "   " });
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_search")
+				?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/BRAVE_SEARCH_API_KEY is not set/);
+	});
+
 	it("uses legacy apiKey fallback for brave", async () => {
 		writeConfig({ apiKey: "legacy-key" });
 		const stub = stubFetch([
@@ -298,6 +319,23 @@ describe("web_fetch.execute — URL validation", () => {
 				.get("web_fetch")
 				?.execute?.("tc", { url: "ftp://x.com" }, undefined as never, undefined as never, createMockCtx()),
 		).rejects.toThrow(/Unsupported URL protocol/);
+	});
+
+	it.each([
+		"http://localhost/",
+		"http://127.0.0.1/",
+		"http://169.254.169.254/latest/meta-data/",
+		"http://10.0.0.1/",
+		"http://192.168.1.1/",
+		"http://172.16.0.1/",
+		"http://[::1]/",
+	])("refuses private/loopback host %s", async (url) => {
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_fetch")
+				?.execute?.("tc", { url }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/private\/loopback/);
 	});
 });
 
@@ -467,6 +505,85 @@ describe("web_fetch.execute — happy path", () => {
 	});
 });
 
+const FETCH_ERROR_MATRIX: ReadonlyArray<{
+	provider: string;
+	envVar: string;
+	fetchUrlMatcher: (u: string) => boolean;
+	label: string;
+}> = [
+	{
+		provider: "brave",
+		envVar: "BRAVE_SEARCH_API_KEY",
+		fetchUrlMatcher: (u) => u.includes("example.com"),
+		label: "Brave",
+	},
+	{ provider: "serper", envVar: "SERPER_API_KEY", fetchUrlMatcher: (u) => u.includes("example.com"), label: "Serper" },
+	{
+		provider: "tavily",
+		envVar: "TAVILY_API_KEY",
+		fetchUrlMatcher: (u) => u.includes("api.tavily.com/extract"),
+		label: "Tavily",
+	},
+	{ provider: "exa", envVar: "EXA_API_KEY", fetchUrlMatcher: (u) => u.includes("api.exa.ai/contents"), label: "Exa" },
+	{ provider: "jina", envVar: "JINA_API_KEY", fetchUrlMatcher: (u) => u.includes("r.jina.ai"), label: "Jina" },
+	{
+		provider: "firecrawl",
+		envVar: "FIRECRAWL_API_KEY",
+		fetchUrlMatcher: (u) => u.includes("api.firecrawl.dev/v1/scrape"),
+		label: "Firecrawl",
+	},
+];
+
+describe.each(FETCH_ERROR_MATRIX)("web_fetch.execute — $provider error paths", ({
+	provider,
+	envVar,
+	fetchUrlMatcher,
+	label,
+}) => {
+	// Brave/Serper share fetch-helpers and read keys via resolveProviderApiKey;
+	// their fetch() doesn't gate on apiKey (raw HTTP doesn't authenticate to the
+	// target URL). Extraction providers (Tavily/Exa/Jina/Firecrawl) DO gate.
+	const guardsKey = provider !== "brave" && provider !== "serper";
+
+	if (guardsKey) {
+		it(`fetch throws when no key configured for ${provider}`, async () => {
+			writeConfig({ provider });
+			const { captured } = registerAndCapture();
+			await expect(
+				captured.tools
+					.get("web_fetch")
+					?.execute?.(
+						"tc",
+						{ url: "https://example.com" },
+						undefined as never,
+						undefined as never,
+						createMockCtx(),
+					),
+			).rejects.toThrow(new RegExp(`${envVar} is not set`));
+		});
+	}
+
+	it(`fetch wraps non-2xx as '${label} Fetch API error (429)'`, async () => {
+		process.env[envVar] = "k";
+		writeConfig({ provider });
+		stubFetch([
+			{
+				match: fetchUrlMatcher,
+				response: () => new Response("rate limit", { status: 429 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		// Brave/Serper raise generic HTTP error (shared pipeline), extraction providers raise labeled "Fetch API error".
+		const expectedPattern =
+			provider === "brave" || provider === "serper" ? /HTTP 429/ : new RegExp(`${label} Fetch API error \\(429\\)`);
+		await expect(
+			captured.tools
+				.get("web_fetch")
+				?.execute?.("tc", { url: "https://example.com" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(expectedPattern);
+	});
+});
+
 describe("web_fetch.execute — provider fetch", () => {
 	it("brave fetch strips HTML and extracts title", async () => {
 		process.env.BRAVE_SEARCH_API_KEY = "k";
@@ -594,6 +711,23 @@ describe("web_fetch.execute — provider fetch", () => {
 		).rejects.toThrow(/no content returned/);
 	});
 
+	it("jina fetch throws when response body is empty", async () => {
+		process.env.JINA_API_KEY = "k";
+		writeConfig({ provider: "jina" });
+		stubFetch([
+			{
+				match: (u) => u.includes("r.jina.ai"),
+				response: () => new Response("", { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_fetch")
+				?.execute?.("tc", { url: "https://x.com" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/no content returned/);
+	});
+
 	it("jina fetch uses r.jina.ai reader", async () => {
 		process.env.JINA_API_KEY = "k";
 		writeConfig({ provider: "jina" });
@@ -632,6 +766,26 @@ describe("web_fetch.execute — provider fetch", () => {
 			?.execute?.("tc", { url: "https://x.com" }, undefined as never, undefined as never, createMockCtx());
 		expect(r?.content[0]).toMatchObject({ text: expect.stringContaining("Page content") });
 		expect(r?.content[0]).toMatchObject({ text: expect.stringContaining("Scraped Page") });
+	});
+
+	it("firecrawl fetch throws on success=true with empty markdown", async () => {
+		process.env.FIRECRAWL_API_KEY = "k";
+		writeConfig({ provider: "firecrawl" });
+		stubFetch([
+			{
+				match: (u) => u.includes("api.firecrawl.dev/v1/scrape"),
+				response: () =>
+					new Response(JSON.stringify({ success: true, data: { metadata: { title: "T" } } }), {
+						status: 200,
+					}),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_fetch")
+				?.execute?.("tc", { url: "https://x.com" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/no content returned/);
 	});
 
 	it("firecrawl fetch handles success=false", async () => {

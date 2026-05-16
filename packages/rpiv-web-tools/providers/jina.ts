@@ -93,6 +93,9 @@ export class JinaProvider implements SearchProvider {
 		}
 
 		const text = await res.text();
+		if (!text.trim()) {
+			throw new Error(`${this.label} Fetch API error: no content returned for ${url}`);
+		}
 		return {
 			text,
 			contentType: "text/markdown",
