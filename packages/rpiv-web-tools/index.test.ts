@@ -831,6 +831,106 @@ describe("web_fetch.execute — provider fetch", () => {
 		// If raw=true had triggered htmlToText, the <p> tag would be gone.
 		expect(r?.content[0]).toMatchObject({ text: expect.stringContaining("<p>vendor markdown</p>") });
 	});
+
+	// Branch coverage for Brave/Serper fetch(): the ?? "" content-type fallback,
+	// the "" -> undefined contentType collapse, and the undefined contentLength
+	// path when the response omits the header.
+	describe.each([
+		{ provider: "brave", envVar: "BRAVE_SEARCH_API_KEY" },
+		{ provider: "serper", envVar: "SERPER_API_KEY" },
+	])("$provider fetch — header fallbacks", ({ provider, envVar }) => {
+		it("returns undefined contentType/contentLength when headers are absent", async () => {
+			process.env[envVar] = "k";
+			writeConfig({ provider });
+			stubFetch([
+				{
+					match: (u) => u.includes("example.com"),
+					// Blob with empty type stops Response from auto-deriving a content-type,
+					// so res.headers.get("content-type") returns null. content-length is
+					// likewise omitted unless we set it.
+					response: () => new Response(new Blob(["plain body"], { type: "" }), { status: 200 }),
+				},
+			]);
+			const { captured } = registerAndCapture();
+			const r = await captured.tools
+				.get("web_fetch")
+				?.execute?.(
+					"tc",
+					{ url: "https://example.com", raw: true },
+					undefined as never,
+					undefined as never,
+					createMockCtx(),
+				);
+			// toMatchObject treats `undefined` as "key absent or undefined", so use
+			// hasOwnProperty + direct equality to assert both.
+			const details = r?.details as Record<string, unknown> | undefined;
+			expect(details?.contentType).toBeUndefined();
+			expect(details?.contentLength).toBeUndefined();
+		});
+
+		it("parses Number(contentLength) when the header is present", async () => {
+			process.env[envVar] = "k";
+			writeConfig({ provider });
+			stubFetch([
+				{
+					match: (u) => u.includes("example.com"),
+					response: () =>
+						new Response("plain body", {
+							status: 200,
+							headers: { "content-type": "text/plain", "content-length": "10" },
+						}),
+				},
+			]);
+			const { captured } = registerAndCapture();
+			const r = await captured.tools
+				.get("web_fetch")
+				?.execute?.(
+					"tc",
+					{ url: "https://example.com", raw: true },
+					undefined as never,
+					undefined as never,
+					createMockCtx(),
+				);
+			expect(r?.details).toMatchObject({ contentType: "text/plain", contentLength: 10 });
+		});
+	});
+
+	// Branch coverage for normalizeBraveResults: each result field is null-coalesced
+	// to "" so a partial vendor row (missing title/url/description) must not throw
+	// and must round-trip as empty strings.
+	it("brave search tolerates missing fields in organic results", async () => {
+		process.env.BRAVE_SEARCH_API_KEY = "k";
+		writeConfig({ provider: "brave" });
+		stubFetch([
+			{
+				match: (u) => u.includes("api.search.brave.com"),
+				response: () => new Response(JSON.stringify({ web: { results: [{}] } }), { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		const r = await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		// Empty fields land as empty strings, not crashes.
+		expect(r?.details).toMatchObject({ results: [{ title: "", url: "", snippet: "" }] });
+	});
+
+	// Branch coverage for normalizeSerperResults: same shape as Brave above.
+	it("serper search tolerates missing fields in organic results", async () => {
+		process.env.SERPER_API_KEY = "k";
+		writeConfig({ provider: "serper" });
+		stubFetch([
+			{
+				match: (u) => u.includes("google.serper.dev"),
+				response: () => new Response(JSON.stringify({ organic: [{}] }), { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		const r = await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		expect(r?.details).toMatchObject({ results: [{ title: "", url: "", snippet: "" }] });
+	});
 });
 
 describe("config round-trip with all providers", () => {
