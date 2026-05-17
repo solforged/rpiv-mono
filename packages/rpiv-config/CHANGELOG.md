@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.8.1] - 2026-05-17
 
 ### Added
 - Shared config I/O library with `configPath`, `loadJsonConfig`, `saveJsonConfig`, `readEnvVar`, and `validateConfig` helpers, extracted from the rpiv sibling packages.
