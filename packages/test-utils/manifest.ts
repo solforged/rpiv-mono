@@ -1,0 +1,85 @@
+/**
+ * Ship-manifest verification helper.
+ *
+ * Walks a package directory for production `.ts` files and compares them to
+ * the `files` array in `package.json`. Used by `ship-manifest.test.ts` files
+ * across the monorepo so every published package can prove its npm tarball
+ * actually contains the modules it imports at runtime.
+ *
+ * Replaces the previous copy-pasted `walkProductionTs` helper in three
+ * packages with one canonical implementation.
+ */
+
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SKIP_DIRS = new Set(["node_modules", "docs"]);
+const SKIP_FILES = new Set(["test-fixtures.ts"]);
+
+export interface ShipManifestResult {
+	/** Entries declared in `package.json` `files`. */
+	declared: readonly string[];
+	/** Production `.ts` files discovered on disk (relative to packageDir). */
+	onDisk: readonly string[];
+	/** On-disk files NOT covered by the `files` array — these would be missing from the published tarball. */
+	missing: readonly string[];
+}
+
+/**
+ * Verify a package's ship manifest against its on-disk production .ts tree.
+ *
+ * Accepts either a directory path or a `file:` URL string (so callers can
+ * pass `import.meta.url` directly — the helper resolves it to the test file's
+ * parent directory).
+ *
+ * Skips: dotfiles/dotdirs, `node_modules`, `docs`, `*.test.ts`, `test-fixtures.ts`.
+ * Does NOT check: asset directories (e.g. `locales/*.json`), `exports` map,
+ * `main`/`module` fields, or extraneous entries in `files`.
+ */
+export function verifyShipManifest(packageDirOrUrl: string): ShipManifestResult {
+	const packageDir = packageDirOrUrl.startsWith("file:") ? dirname(fileURLToPath(packageDirOrUrl)) : packageDirOrUrl;
+	const pkgRaw = readFileSync(resolve(packageDir, "package.json"), "utf8");
+	const pkg = JSON.parse(pkgRaw) as { files?: string[] };
+	const declared = pkg.files ?? [];
+	const exactFiles = new Set<string>();
+	const dirPrefixes: string[] = [];
+	for (const entry of declared) {
+		// Treat trailing-slash entries (and bare directory names that exist on
+		// disk) as recursive directory inclusion — matches npm's own `files`
+		// semantics so the test answers "would npm publish actually include this?"
+		// rather than enforcing a stylistic preference.
+		if (entry.endsWith("/")) dirPrefixes.push(entry);
+		else exactFiles.add(entry);
+	}
+
+	const onDisk = walkProductionTs(packageDir, packageDir);
+	const missing = onDisk.filter((f) => !isCovered(f, exactFiles, dirPrefixes));
+
+	return { declared, onDisk, missing };
+}
+
+function isCovered(file: string, exactFiles: Set<string>, dirPrefixes: readonly string[]): boolean {
+	if (exactFiles.has(file)) return true;
+	for (const prefix of dirPrefixes) {
+		if (file.startsWith(prefix)) return true;
+	}
+	return false;
+}
+
+function walkProductionTs(root: string, dir: string): string[] {
+	const out: string[] = [];
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		if (entry.name.startsWith(".")) continue;
+		if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue;
+		const abs = resolve(dir, entry.name);
+		if (entry.isDirectory()) {
+			out.push(...walkProductionTs(root, abs));
+			continue;
+		}
+		if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
+		if (entry.name.endsWith(".test.ts") || SKIP_FILES.has(entry.name)) continue;
+		out.push(relative(root, abs));
+	}
+	return out;
+}

@@ -19,6 +19,7 @@
     "exec.ts",
     "spawn.ts",
     "fs.ts",
+    "manifest.ts",
     "CHANGELOG.md"
   ],
   "exports": {
@@ -30,7 +31,8 @@
     "./fetch": "./fetch.js",
     "./exec": "./exec.js",
     "./spawn": "./spawn.js",
-    "./fs": "./fs.js"
+    "./fs": "./fs.js",
+    "./manifest": "./manifest.js"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
