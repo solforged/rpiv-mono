@@ -5,7 +5,7 @@ All notable changes to `@juicesharp/rpiv-pi` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.3] - 2026-05-18
 
 ### Fixed
 - Empty `.rpiv/artifacts/` directory tree no longer appears on session start when no migration source exists (closes #31). The 1.8.2 migration removed `thoughts/` scaffolding but reintroduced the same greedy `mkdir` loop under the new path; artifact subdirectories are now created on first write by the Write tool, as the FRD originally specified.
