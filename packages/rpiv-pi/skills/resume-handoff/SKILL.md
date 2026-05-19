@@ -2,6 +2,7 @@
 name: resume-handoff
 description: Resume work from a handoff document produced by create-handoff. Reads the handoff, verifies current repo, branch, and state, and continues from where the previous session left off. Use at the start of a new session when the user references a handoff file, says "resume from handoff", "continue from where we left off", or invokes /resume-handoff.
 argument-hint: [handoff-path]
+shell-timeout: 10
 ---
 
 # Resume Handoff
@@ -29,16 +30,15 @@ When this command is invoked:
    - Begin the analysis process by ingesting relevant context from the handoff document, reading additional files it mentions
    - Then propose a course of action to the user and confirm, or ask for clarification on direction.
 
-2. **If no parameters provided**, respond with:
-```
-I'll help you resume work from a handoff document. Let me find the available handoffs.
+2. **If no parameters provided**, list recent handoffs and ask which to resume:
 
-Which handoff would you like to resume from?
+   ```!
+   node "${SKILL_DIR}/../_shared/list-recent.mjs" .rpiv/artifacts/handoffs 10
+   ```
 
-Tip: You can invoke this command directly with a handoff path: `/skill:resume-handoff .rpiv/artifacts/handoffs/YYYY-MM-DD_HH-MM-SS_description.md`
-```
+   If the block above is empty, no handoffs exist under `.rpiv/artifacts/handoffs/` — tell the user and ask for a path. Otherwise, present the listed filenames via `ask_user_question` (top 4 as options; "Other" for older entries or a full path), then wait for selection.
 
-Then wait for the user's input.
+   Direct invocation alternative: `/skill:resume-handoff .rpiv/artifacts/handoffs/<filename>`
 
 ### Step 2: Read and Analyze Handoff
 
