@@ -2,6 +2,7 @@
 name: code-review
 description: "Conduct comprehensive code reviews of pending changes, a branch, or a PR using parallel specialist agents that audit the diff, compare against peer code, and verify claims. Use when the user asks to 'review this', wants pending changes, a PR, a branch, or a diff reviewed, or asks for a code review. Produces review documents in .rpiv/artifacts/reviews/. Internal mechanics like row-only agent contracts and Gap-Finder set arithmetic are documented in the skill body."
 argument-hint: "[scope]"
+shell-timeout: 10
 ---
 
 # Code Review
@@ -11,6 +12,19 @@ Review changes across **Quality**, **Security**, **Dependencies** lenses with op
 ## Input
 
 `$ARGUMENTS` — scope: `commit` | `staged` | `working` | a commit hash | `A..B` range | PR branch name. Empty defaults to feature-branch-vs-default-branch (first-parent).
+
+## Metadata
+
+```!
+node "${SKILL_DIR}/../_shared/now.mjs"
+echo
+node "${SKILL_DIR}/../_shared/git-context.mjs"
+```
+
+- `now.mjs` (line 1) — `<iso>\t<slug>` tab-separated. Used by Step 7.1 only.
+- `git-context.mjs` (lines below) — `branch:` / `commit:` / `repo:` / `root:` / `in_repo:` / `author:`. Used by Step 7.1 only.
+
+Scope resolution (default branch, range, ChangedFiles) is LLM-invoked at Step 1.1 via the bundled `_helpers/review-range.mjs` — it depends on `$ARGUMENTS` and on conversational clarification, which render-time substitution cannot capture.
 
 ## Flow
 
@@ -24,33 +38,46 @@ Every Wave-2 agent prompt contains EXACTLY: (a) `Known Context:` followed by the
 
 ### Step 1: Resolve Scope and Assemble the Diff
 
-1. **Detect default branch**: `DEFAULT_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')`. Fallback: probe `main` then `master` (`git rev-parse --verify --quiet <name>`); if neither resolves, ask the user which branch is the integration target before proceeding. Use `$DEFAULT_BRANCH` wherever the parser below says `<default>`.
+1. **Resolve scope via the bundled helper.** Determine the scope spec from the value the user supplied (visible in `## Input` above as the substituted argument). If empty, use the literal string `auto`; if ambiguous (prose, mixed list, unrecognised branch name), clarify via `ask_user_question` — options: (A) "review current branch vs default branch (first-parent)" → `auto`, (B) "review uncommitted changes" → `working`, (C) "restate scope" → free-text — then re-invoke. Then run:
 
-2. **Interpret the Scope line** (from the header) and identify `OLDEST` + `NEWEST` commits (user-inclusive endpoints). Each branch carries a **strategy tag** used later by Assembly and Step 6:
-   - Empty → `OLDEST=$(git merge-base "$DEFAULT_BRANCH" HEAD)`, `NEWEST=HEAD`, strategy=`first-parent` (also skips the `BASE` computation below — use `BASE=OLDEST` directly)
-   - `commit` → `OLDEST=NEWEST=HEAD`, strategy=`working-tree`
-   - `staged` / `working` → no commits; see working-tree branch below, strategy=`working-tree`
-   - Single hash `h` → `OLDEST=NEWEST=h`, strategy=`explicit-range`
-   - Range `A..B` → verify A is ancestor of B (`git merge-base --is-ancestor A B`; swap if reversed); `OLDEST=A`, `NEWEST=B`, strategy=`explicit-range`
-   - Commit list (`h1,h2,h3` or whitespace-separated) → find endpoints via `git rev-list --topo-order`; `OLDEST` = farthest-from-HEAD, `NEWEST` = nearest. Reject if not on a single linear ancestry (ask user to clarify). Strategy=`first-parent` (ancestry invariant preserves named commits under first-parent traversal).
-   - PR branch name → `OLDEST=$(git merge-base "$DEFAULT_BRANCH" HEAD)`, `NEWEST=HEAD`, strategy=`first-parent` — note: `OLDEST` is already the parent-of-first-PR-commit, so skip the `BASE` computation below and use `BASE=OLDEST` directly.
-   - Anything unrecognised (prose, branch name that fails to resolve, mixed list) → ask the user to clarify via `ask_user_question`: (A) "review current branch vs `$DEFAULT_BRANCH` (first-parent)", (B) "review uncommitted changes", (C) "restate scope". Do NOT silently guess.
+   ```bash
+   node "${SKILL_DIR}/_helpers/review-range.mjs" "<scope-spec>"
+   ```
 
-2. **Compute the range once**: `BASE=$(git rev-parse "$OLDEST^")`, `TIP=$NEWEST`, `RANGE="$BASE..$TIP"`. This gives a range that INCLUDES `OLDEST`'s own changes (standard `A..B` excludes `A`). Every subsequent git command uses `$RANGE` — do NOT inline a `^` character in templates; orchestrators sometimes drop it. Also set `FP_FLAG="--first-parent"` when strategy=`first-parent`, else `FP_FLAG=""`.
+   The helper emits labeled key/value lines (`default_branch:`, `strategy:`, `oldest:`, `newest:`, `base:`, `tip:`, `range:`, `fp_flag:`) followed by a `---changed-files---` block. Read those as authoritative for the rest of Step 1. If `strategy: unrecognised` appears, the `note:` field explains why — clarify via `ask_user_question` and re-invoke with a valid spec.
 
-3. **Assemble the UNION of changes** (not the net endpoint-diff — so reverted intermediate work stays visible). Save the patch to a tempfile once with generous context; do NOT re-run `git log --patch` to slice windows later:
-   - `git log "$RANGE" $FP_FLAG --name-only --pretty=format: | sort -u` → `ChangedFiles`
-   - `git log "$RANGE" $FP_FLAG --stat --reverse` → per-commit size summary
-   - `git log "$RANGE" $FP_FLAG --patch --reverse --no-merges -U30 > .git/code-review-patch.diff` → union patches with **30 lines of surrounding context per hunk** (function-level context inline). `$FP_FLAG` is orthogonal to `--no-merges`: first-parent prunes second-parent subtrees from reachability, `--no-merges` drops the merge commit itself from the log.
-   - `git log "$RANGE" --reverse --format="%H %s%n%n%b%n---"` → commit-message context
-   - **Working-tree branch** (`staged` / `working`, no `$RANGE`): `git diff --cached --name-only` / `git diff --name-only`; `git diff --cached --stat` / `git diff --stat`; `git diff --cached -U30` / `git diff -U30`. Commit-message context is N/A. `FP_FLAG` is not applicable.
+   `<scope-spec>` translation table — map the user's substituted argument to one of these forms:
+
+   | Argument shape | Pass to helper |
+   |---|---|
+   | empty (no argument provided) | `auto` |
+   | literal `commit` / `staged` / `working` | same word verbatim |
+   | hex commit hash (4-40 chars, e.g. `abc1234`) | the hash verbatim |
+   | `<A>..<B>` (e.g. `HEAD~5..HEAD`, `main..feature`) | the range verbatim |
+   | comma- or whitespace-separated hashes (`h1,h2,h3` or `h1 h2 h3`) | the list verbatim |
+   | branch name (must be checked out at HEAD locally) | the branch name verbatim |
+   | anything else (prose, mixed list, unresolvable ref) | clarify via `ask_user_question`, then re-invoke |
+
+2. **Confirm strategy** from the helper output. The mapping into the rest of the skill:
+   - `strategy: first-parent` (`auto` / PR branch / commit list) — use `<range>` AND `<fp_flag>` (which is `--first-parent`) in the subsequent git commands. `<base>` is the parent-of-first-feature-commit (helper computes via `merge-base`), so the range already includes OLDEST's own changes — do NOT add `^` anywhere.
+   - `strategy: explicit-range` (single hash / `A..B`) — use `<range>` without `<fp_flag>` (it's empty for this strategy). `<base>` is OLDEST^ (so the range includes OLDEST itself, matching the original "user-inclusive endpoint" intent).
+   - `strategy: working-tree` (`commit` / `staged` / `working`) — no `<range>`; use the working-tree commands listed in the next bullet.
+
+   `--first-parent` is orthogonal to `--no-merges`: the former prunes second-parent subtrees from reachability, the latter drops merge commits themselves from the log. Both flags are independently controllable below.
+
+3. **Assemble the UNION of changes** (not the net endpoint-diff — so reverted intermediate work stays visible). Save the patch to a tempfile once with generous context; do NOT re-run `git log --patch` to slice windows later. Substitute literal `<range>` and `<fp_flag>` values from the helper output (`<fp_flag>` is `--first-parent` or empty — omit the flag entirely when empty):
+   - `ChangedFiles` — read from the helper's `---changed-files---` block. If a `(... N more files truncated ...)` footer appears, the change set exceeded the helper's 2000-line/40 KB cap; scope the review tighter or run the patch-tempfile command below to recover the full surface from disk.
+   - `git log "<range>" <fp_flag> --stat --reverse` → per-commit size summary
+   - `git log "<range>" <fp_flag> --patch --reverse --no-merges -U30 > .git/code-review-patch.diff` → union patches with **30 lines of surrounding context per hunk** (function-level context inline)
+   - `git log "<range>" --reverse --format="%H %s%n%n%b%n---"` → commit-message context
+   - **Working-tree branch** (`strategy: working-tree`, no `<range>`): for `staged` use `git diff --cached --stat` + `git diff --cached -U30 > .git/code-review-patch.diff`; for `working` use `git diff --stat` + `git diff -U30 > .git/code-review-patch.diff`; for `commit` use `git show HEAD --stat` + `git show HEAD -U30 > .git/code-review-patch.diff`. Commit-message context is N/A for `staged`/`working`; for `commit` use `git show HEAD --format="%H %s%n%n%b%n---" --no-patch`. ChangedFiles still comes from the helper.
    - **Patch-size fallback**: `-U30` produces ~2–3× the size of `-U0`. If the resulting patch exceeds ~1MB, drop to `-U10` for this run; never use `-U0` — it defeats the skill's design.
 
 3. **Bail-out**: if `ChangedFiles` is empty, print `No changes in scope {scope}. Exiting.` and STOP. Do not write an artifact.
 
 4. **Derive scope + flags** (orchestrator-side, used in later steps):
    - `InScopeFiles` — used by the Step 6 pre-filter. `ChangedFiles` reflects *tree-reachability* (inflated on branches that back-merged the default branch — each post-merge first-parent commit inherits the merge's tree, so `--name-only` includes every file the merge resolved); `InScopeFiles` reflects *commits' own diffs* and is what the developer actually authored. Derivation:
-     - strategy=`first-parent` (empty / PR branch / commit-list inputs) → `InScopeFiles = ⋃ git diff-tree --no-commit-id --name-only -r <h>` over `git log "$RANGE" --first-parent --no-merges --pretty=%H` (each feature commit's own file delta; back-merge sidecars drop out even when the merge is on the first-parent line). For commit-list input, iterate over the user-named hashes instead of the first-parent walk to preserve non-contiguous-list intent.
+     - strategy=`first-parent` (`auto` / PR branch / commit-list inputs) → `InScopeFiles = ⋃ git diff-tree --no-commit-id --name-only -r <h>` over `git log "<range>" --first-parent --no-merges --pretty=%H` (each feature commit's own file delta; back-merge sidecars drop out even when the merge is on the first-parent line). For commit-list input, iterate over the user-named hashes instead of the first-parent walk to preserve non-contiguous-list intent.
      - strategy=`explicit-range` → `InScopeFiles = ChangedFiles` (user explicitly asked for range semantics; merges in the range are part of the intent).
      - strategy=`working-tree` → `InScopeFiles = ChangedFiles` (no merge surface).
    - **Invariant**: `InScopeFiles ⊆ ChangedFiles`. On back-merged feature branches, `InScopeFiles ⊊ ChangedFiles` is the primary mechanism by which sidecar findings get dropped at Step 6.
@@ -58,7 +85,7 @@ Every Wave-2 agent prompt contains EXACTLY: (a) `Known Context:` followed by the
    - `LockstepSelfReview` = repository root contains `scripts/sync-versions.js` AND every `packages/*/package.json` shares the same `version:` AND the diff touches `packages/*/package.json`.
    - `HasGatingPredicate` = diff adds or modifies a **status/enum-comparison predicate** (`Status == X`, `Status is X or Y`, `X.Contains(Status)`, pattern-match on a discriminator) OR introduces a new value into an enum referenced by existing gating predicates. NOT merely the presence of `if (!x) return`.
    - `ReviewType` = one of `commit | pr | staged | working`.
-   - `PeerPairs` = `(new_file, peer_file)` tuples. `new_file` is in `git log "$RANGE" --diff-filter=A --name-only` (working-tree: `git diff --diff-filter=A --name-only [--cached]`). `peer_file` exists at HEAD (`git ls-tree HEAD`) and matches one heuristic:
+   - `PeerPairs` = `(new_file, peer_file)` tuples. `new_file` is in `git log "<range>" --diff-filter=A --name-only` (working-tree: `git diff --diff-filter=A --name-only [--cached]`). `peer_file` exists at HEAD (`git ls-tree HEAD`) and matches one heuristic:
      - **Stem similarity ≥ 60%** of the longer stem (e.g. `PhysicalProductSubscription` ↔ `Subscription`).
      - **Interface/impl pair**: `I<Name>` ↔ `<Name>`, `<Name>` ↔ `<Name>.impl`, `<Name>{Abstract,Base,Protocol}` ↔ `<Name>`.
      - **Shared suffix** from `{Handler, Service, Repository, Aggregate, Reducer, Controller, Resolver, Command, Query, Job, Processor, Strategy, Policy, Event, Listener, Subscriber, Publisher, Exception, Eligibility, Ability, QueryParam, Specification, Factory, Builder}`.
@@ -407,12 +434,11 @@ Before writing the artifact, spawn ONE `claim-verifier` whose sole job is to gro
 
 ### Step 7: Write the Review Document
 
-1. **Determine metadata**:
-   - Filename: `.rpiv/artifacts/reviews/YYYY-MM-DD_HH-MM-SS_{scope-kebab}.md`
-   - Repository: git root basename (fallback: cwd basename).
-   - Branch + commit: from git-context injected at session start, or `git branch --show-current` / `git rev-parse --short HEAD` (fallback: `no-branch` / `no-commit`).
-   - Timestamp: run `date +"%Y-%m-%dT%H:%M:%S%z"` — raw for `date:`, first 19 chars (`T`→`_`, `:`→`-`) for filename slug.
-   - Reviewer: user from injected git-context (fallback: `unknown`).
+1. **Determine metadata** (from the Metadata block at the top of this skill):
+   - Filename: `.rpiv/artifacts/reviews/<slug>_<scope-kebab>.md` — `<slug>` is the second tab-separated field on `now.mjs` line 1.
+   - `repository:` ← `repo:` label; `branch:` / `commit:` ← matching labels (fallbacks `no-branch` / `no-commit` already substituted).
+   - `date:` ← `<iso>` (first tab-separated field on `now.mjs` line 1, offset verbatim).
+   - Reviewer: `author:` from the Metadata block (fallback: `unknown`).
 
 2. **Write the artifact** using the Write tool (no Edit — this skill writes once per run).
 
