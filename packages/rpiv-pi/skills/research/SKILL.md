@@ -2,6 +2,7 @@
 name: research
 description: Answer structured research questions about a codebase using targeted parallel analysis agents, then synthesize findings into a research document in .rpiv/artifacts/research/. Internally dispatches the scope-tracer agent to formulate trace-quality research questions, then answers them. Use when the user wants in-depth research on a codebase area, asks to "research X", or needs answers to architecture or behavior questions before designing changes.
 argument-hint: "[free-text research prompt]"
+shell-timeout: 10
 ---
 
 # Research
@@ -11,6 +12,19 @@ You are tasked with answering structured research questions by spawning targeted
 ## Input
 
 `$ARGUMENTS` — free-text research prompt, or a `.rpiv/artifacts/discover/*.md` path to chain from discover.
+
+## Metadata
+
+```!
+node "${SKILL_DIR}/../_shared/now.mjs"
+echo
+node "${SKILL_DIR}/../_shared/git-context.mjs"
+```
+
+- `now.mjs` (line 1) — `<iso>\t<slug>` tab-separated.
+- `git-context.mjs` (lines below) — `branch:` / `commit:` / `repo:` / `root:` / `in_repo:`.
+
+Copy values verbatim — do not reformat the timezone offset.
 
 ## Flow
 
@@ -195,15 +209,11 @@ Findings go into Precedents & Lessons. Otherwise skip and note "git history unav
 
 ### Step 4: Write Research Document
 
-1. **Determine metadata:**
-   - Filename: `.rpiv/artifacts/research/YYYY-MM-DD_HH-MM-SS_{topic}.md`
-     - YYYY-MM-DD_HH-MM-SS: Current date and time
-     - topic: Brief kebab-case description
-   - Repository name: from git root basename, or current directory basename if not a git repo
-   - Use the git branch and commit from the git context injected at the start of the session (or run `git branch --show-current` / `git rev-parse --short HEAD` directly)
-   - Timestamp: run `date +"%Y-%m-%dT%H:%M:%S%z"` — raw for `date:` and `last_updated:`, first 19 chars (`T`→`_`, `:`→`-`) for filename slug.
-   - Author: use the User from the git context injected at the start of the session (fallback: "unknown")
-   - If metadata unavailable: use "unknown" for commit/branch
+1. **Determine metadata** (from the Metadata block above):
+   - Filename: `.rpiv/artifacts/research/<slug>_<topic>.md` — `<slug>` is the second tab-separated field on `now.mjs` line 1; `<topic>` is a brief kebab-case description.
+   - `repository:` ← `repo:` label; `branch:` / `commit:` ← matching labels (already include `no-branch` / `no-commit` fallbacks).
+   - `date:` / `last_updated:` ← `<iso>` (first tab-separated field on `now.mjs` line 1, offset verbatim).
+   - Author: from the User in the injected git context (fallback: `unknown`).
 
 2. **Write the research document** — this document is compressed context for a new session. Include everything the planner needs to make architectural decisions without re-researching:
 
