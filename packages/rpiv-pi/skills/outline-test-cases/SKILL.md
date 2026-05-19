@@ -2,6 +2,7 @@
 name: outline-test-cases
 description: Discover testable features in a project (frontend-first) and create a folder outline under .rpiv/test-cases/ with per-feature metadata. Incremental runs reuse the existing outline for smarter discovery and diff-based checkpoints. Use before write-test-cases to map project scope, when the user wants to plan or inventory test coverage, asks to "outline test cases", or wants a test-case scaffold generated for a project.
 argument-hint: [target-directory]
+shell-timeout: 10
 allowed-tools: Agent, Read, Write, Edit, Glob, Grep
 ---
 
@@ -14,6 +15,14 @@ Two modes: **Fresh** (no existing outline — full discovery and checkpoint) and
 ## Input
 
 `$ARGUMENTS` — optional target directory. Defaults to the current working directory.
+
+## Metadata
+
+```!
+node "${SKILL_DIR}/../_shared/now.mjs"
+```
+
+`now.mjs` (line 1) — `<iso>\t<slug>` tab-separated. Use `<iso>` for any `date:` frontmatter bump; copy verbatim.
 
 ## Flow
 
@@ -287,7 +296,7 @@ After all questions are answered, present the full feature list summary (same fo
    - Append new Q&A pairs to `## Checkpoint History` under a new date header (`### YYYY-MM-DD`)
    - Update `## Scope Decisions` if changed during checkpoint
    - Update `## Domain Context` if changed
-   - Update frontmatter `date` to current date
+   - Update frontmatter `date` to `<iso>` from the Metadata block (first tab-separated field on `now.mjs` line 1)
 
 2. **Add new feature folders** for newly discovered features:
    - Create directory + write new `_meta.md` from template (same as Fresh mode Step 5.2)
@@ -327,7 +336,7 @@ After all questions are answered, present the full feature list summary (same fo
 ### Step 6: Handle Follow-ups
 
 - **Append, never rewrite.** Edit `_meta.md` files in place; do not delete folders that contain generated TCs (flag them via `status: removed` instead).
-- **Bump frontmatter.** Update each touched `_meta.md`'s `date` field and the root `README.md` `Last updated:` line to the current date.
+- **Bump frontmatter.** Update each touched `_meta.md`'s `date` field and the root `README.md` `Last updated:` line to `<iso>` from the Metadata block.
 - **Re-dispatch narrowly.** Spawn ≤1–2 agents scoped to the changed feature. Do NOT re-run the full skill.
 - **When to re-invoke instead.** If the codebase changed significantly, re-run `/skill:outline-test-cases` — incremental mode auto-detects existing outlines and reconciles. The previous block's `Next step:` stays valid.
 
