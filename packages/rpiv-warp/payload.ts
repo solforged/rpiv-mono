@@ -8,7 +8,7 @@
 
 import { basename } from "node:path";
 import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
-import type { ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
+import { type ExtensionContext, parseSkillBlock, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { negotiateProtocolVersion, type WarpEvent } from "./protocol.js";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +78,22 @@ export function extractMessageText(content: UserMessage["content"] | AssistantMe
 		.join("\n");
 }
 
+/**
+ * Collapse a `<skill name="…" location="…">…</skill>` wrapper (emitted by
+ * `rpiv-args` and Pi's built-in skill expander) back to the user-facing
+ * `/skill:<name> <args>` shorthand. Non-skill input passes through verbatim.
+ *
+ * Why: Warp surfaces this string in the `question_asked` toast. The wrapper
+ * is a load-bearing LLM-input format, not something the human typed —
+ * showing it raw leaks `<skill name="…" location="/abs/path">` into the
+ * notification. Inverse of the wrapper builder in `rpiv-args/args.ts:205`.
+ */
+export function summarizeSkillBlock(text: string): string {
+	const parsed = parseSkillBlock(text);
+	if (!parsed) return text;
+	return parsed.userMessage ? `/skill:${parsed.name} ${parsed.userMessage}` : `/skill:${parsed.name}`;
+}
+
 // ---------------------------------------------------------------------------
 // Branch traversal — reverse-scan filtered branch for last user/assistant text
 // ---------------------------------------------------------------------------
@@ -92,7 +108,7 @@ function findLastMessageText(branch: SessionEntry[], role: "user" | "assistant")
 		if (!isMessageEntry(entry)) continue;
 		const message = entry.message;
 		if (message.role !== role) continue;
-		const text = extractMessageText((message as UserMessage | AssistantMessage).content);
+		const text = summarizeSkillBlock(extractMessageText((message as UserMessage | AssistantMessage).content));
 		if (text.length > 0) return truncate(text);
 	}
 	return "";
@@ -133,7 +149,7 @@ export function buildSessionStartPayload(ctx: ExtensionContext): WarpPayload {
 export function buildPromptSubmitPayload(ctx: ExtensionContext, query: string = ""): WarpPayload {
 	return {
 		...baseEnvelope("prompt_submit", ctx),
-		query,
+		query: summarizeSkillBlock(query),
 	};
 }
 

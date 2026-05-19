@@ -13,6 +13,7 @@ import {
 	lastUserText,
 	projectName,
 	serializePayload,
+	summarizeSkillBlock,
 	TRUNCATE_LIMIT,
 	truncate,
 } from "./payload.js";
@@ -67,6 +68,24 @@ describe("extractMessageText", () => {
 	});
 });
 
+describe("summarizeSkillBlock", () => {
+	const wrap = (name: string, body: string, suffix?: string) =>
+		`<skill name="${name}" location="/abs/${name}/SKILL.md">\nReferences are relative to /abs/${name}.\n\n${body}\n</skill>${suffix ? `\n\n${suffix}` : ""}`;
+
+	it("collapses a wrapper with trailing-args suffix to `/skill:<name> <args>`", () => {
+		expect(summarizeSkillBlock(wrap("discover", "body text", "write a file"))).toBe("/skill:discover write a file");
+	});
+	it("collapses a wrapper with no suffix to `/skill:<name>` (token-path emit)", () => {
+		expect(summarizeSkillBlock(wrap("discover", "body text"))).toBe("/skill:discover");
+	});
+	it("passes non-skill input through verbatim", () => {
+		expect(summarizeSkillBlock("how do I deploy?")).toBe("how do I deploy?");
+	});
+	it("passes a malformed/partial wrapper through verbatim", () => {
+		expect(summarizeSkillBlock('<skill name="x"> body </skill>')).toBe('<skill name="x"> body </skill>');
+	});
+});
+
 describe("lastUserText / lastAssistantText", () => {
 	it("returns empty string on empty branch", () => {
 		expect(lastUserText([])).toBe("");
@@ -92,6 +111,12 @@ describe("lastUserText / lastAssistantText", () => {
 		const long = "x".repeat(TRUNCATE_LIMIT + 50);
 		const branch = buildSessionEntries([makeUserMessage(long)]);
 		expect(lastUserText(branch).length).toBe(TRUNCATE_LIMIT);
+	});
+	it("collapses a stored skill-wrapper user message to `/skill:<name> <args>`", () => {
+		const wrapped =
+			'<skill name="discover" location="/abs/discover/SKILL.md">\nReferences are relative to /abs/discover.\n\nbody text\n</skill>\n\nwrite a file';
+		const branch = buildSessionEntries([makeUserMessage(wrapped)]);
+		expect(lastUserText(branch)).toBe("/skill:discover write a file");
 	});
 });
 
@@ -148,6 +173,12 @@ describe("build*Payload", () => {
 	it("buildPromptSubmitPayload defaults query to empty string", () => {
 		const p = buildPromptSubmitPayload(createMockCtx());
 		expect(p.query).toBe("");
+	});
+	it("buildPromptSubmitPayload collapses a wrapped skill query to `/skill:<name> <args>`", () => {
+		const wrapped =
+			'<skill name="discover" location="/abs/discover/SKILL.md">\nReferences are relative to /abs/discover.\n\nbody text\n</skill>\n\nwrite a file';
+		const p = buildPromptSubmitPayload(createMockCtx(), wrapped);
+		expect(p.query).toBe("/skill:discover write a file");
 	});
 	it("buildToolCompletePayload carries tool_input when provided", () => {
 		const p = buildToolCompletePayload(createMockCtx(), "bash", { command: "npm test" });
