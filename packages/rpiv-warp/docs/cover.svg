@@ -2,109 +2,102 @@
   <title>rpiv-warp — Native Warp terminal toasts for Pi Agent lifecycle events</title>
   <defs>
     <style>
-      .mono { font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace; }
+      .mono { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .serif { font-family: 'Iowan Old Style', 'Hoefler Text', Charter, 'Source Serif Pro', Georgia, serif; }
       .ui { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif; }
-      .ink { fill: #F4EFE6; }
-      .muted { fill: #8C8678; }
-      .dim { fill: #4F4A41; }
-      .accent { fill: #FF7A3D; }
-      .mint { fill: #6FD0B8; }
-      .gold { fill: #E0B956; }
+      .ink { fill: #ede6d3; }
+      .text-quiet { fill: #a8a29e; }
+      .text-distant { fill: #9c968d; }
+      .ochre { fill: #a8896c; }
+      .sage { fill: #8a9580; }
+      .washi-soft { fill: #c9c0a8; }
     </style>
-    <filter id="grain" x="0" y="0" width="100%" height="100%">
-      <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="31"/>
-      <feColorMatrix values="0 0 0 0 0.96  0 0 0 0 0.94  0 0 0 0 0.88  0 0 0 0.04 0"/>
-    </filter>
-    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
-      <stop offset="55%" stop-color="#070605" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000" stop-opacity="0.7"/>
+    <radialGradient id="wash-ochre" cx="25%" cy="10%" r="65%">
+      <stop offset="0%" stop-color="#a8896c" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#a8896c" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="titleGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1C1813"/>
-      <stop offset="100%" stop-color="#14110D"/>
-    </linearGradient>
-    <filter id="winShadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#000" flood-opacity="0.6"/>
+    <radialGradient id="wash-sage" cx="85%" cy="90%" r="55%">
+      <stop offset="0%" stop-color="#8a9580" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#8a9580" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="toastShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="18" flood-color="#000" flood-opacity="0.65"/>
     </filter>
-    <filter id="toastShadow" x="-15%" y="-15%" width="130%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="20" flood-color="#000" flood-opacity="0.7"/>
-    </filter>
-    <clipPath id="wclip"><rect x="64" y="56" width="1152" height="688" rx="12"/></clipPath>
   </defs>
 
-  <rect width="1280" height="800" fill="#070605"/>
-  <rect width="1280" height="800" filter="url(#grain)" opacity="0.45"/>
-  <rect width="1280" height="800" fill="url(#vignette)"/>
+  <rect width="1280" height="800" fill="#1c1a17"/>
+  <rect width="1280" height="800" fill="url(#wash-ochre)"/>
+  <rect width="1280" height="800" fill="url(#wash-sage)"/>
 
-  <rect x="64" y="56" width="1152" height="688" rx="12" fill="#0E0D0B" filter="url(#winShadow)"/>
-
-  <g clip-path="url(#wclip)">
-    <rect x="64" y="56" width="1152" height="44" fill="url(#titleGrad)"/>
-    <line x1="64" y1="100" x2="1216" y2="100" stroke="#2A2620"/>
-    <line x1="64" y1="57" x2="1216" y2="57" stroke="#3A352D" stroke-opacity="0.6"/>
-    <circle cx="92"  cy="78" r="7" fill="#FF5F57"/>
-    <circle cx="120" cy="78" r="7" fill="#FFBD2E"/>
-    <circle cx="148" cy="78" r="7" fill="#28C840"/>
-    <text class="mono muted" x="640" y="84" font-size="14" letter-spacing="1.4" text-anchor="middle">~/rpiv-mono &#8212; pi &#8212; rpiv-warp</text>
-
-    <text class="mono mint" x="120" y="190" font-size="46" font-weight="700"># rpiv-warp</text>
-    <text class="mono muted" x="120" y="226" font-size="20">Native Warp toasts for Pi lifecycle events.</text>
-
-    <text class="mono muted" x="120" y="354" font-size="14" letter-spacing="1.6">[hook]</text>
-    <text class="mono ink" x="208" y="354" font-size="14">agent_end</text>
-    <text class="mono muted" x="120" y="394" font-size="14" letter-spacing="1.6">[bytes]</text>
-    <text class="mono" x="208" y="394" font-size="14"><tspan class="accent" font-weight="700">ESC</tspan> <tspan class="muted">]</tspan> <tspan class="accent" font-weight="700">777</tspan> <tspan class="muted">;</tspan> <tspan class="muted">notify</tspan> <tspan class="muted">;</tspan> <tspan class="mint">&#8230;</tspan> <tspan class="accent" font-weight="700">BEL</tspan></text>
-    <text class="mono muted" x="120" y="434" font-size="14" letter-spacing="1.6">[warp]</text>
-    <text class="mono" x="208" y="434" font-size="14"><tspan class="mint">&#10003;</tspan> <tspan class="muted">delivered</tspan></text>
-
-    <line x1="500" y1="430" x2="600" y2="430" stroke="#FF7A3D" stroke-width="1.6" stroke-dasharray="4 4"/>
-    <path d="M592 422 L606 430 L592 438" fill="none" stroke="#FF7A3D" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
-
-    <g transform="translate(620 310)" filter="url(#toastShadow)">
-      <rect x="0" y="0" width="540" height="248" rx="14" fill="#15120E" stroke="#3A352D" stroke-width="1.2"/>
-
-      <rect x="28" y="32" width="68" height="68" rx="10" fill="#F4EFE6"/>
-      <text class="ui" x="62" y="80" font-size="34" font-weight="800" fill="#15120E" text-anchor="middle" letter-spacing="-1">P!</text>
-      <circle cx="92" cy="96" r="13" fill="#15120E"/>
-      <circle cx="92" cy="96" r="10" fill="#E0B956"/>
-      <path d="M 92 86 A 10 10 0 0 1 92 106 Z" fill="#15120E" opacity="0.5"/>
-
-      <g transform="translate(124 38)" stroke="#8C8678" stroke-width="1.4" fill="none" stroke-linecap="round">
-        <circle cx="2.5" cy="2.5" r="1.6" fill="#8C8678" stroke="none"/>
-        <circle cx="2.5" cy="13.5" r="1.6" fill="#8C8678" stroke="none"/>
-        <circle cx="11" cy="2.5" r="1.6" fill="#8C8678" stroke="none"/>
-        <path d="M2.5 4 V12 M11 4 V6.5 Q11 9 8.5 9 H5"/>
-      </g>
-      <text class="ui muted" x="148" y="50" font-size="14">main</text>
-      <text class="ui ink" x="124" y="86" font-size="22" font-weight="700">Pi needs attention</text>
-      <text class="ui muted" x="124" y="118" font-size="17">Waiting for your answer</text>
-
-      <line x1="28" y1="158" x2="512" y2="158" stroke="#2A2620"/>
-
-      <text class="ui muted" x="124" y="200" font-size="15">Open conversation</text>
-
-      <rect x="294" y="184" width="30" height="26" rx="5" fill="#221E18" stroke="#3A352D" stroke-width="1"/>
-      <text class="ui ink" x="309" y="202" font-size="14" font-weight="600" text-anchor="middle">&#8593;</text>
-      <rect x="332" y="184" width="30" height="26" rx="5" fill="#221E18" stroke="#3A352D" stroke-width="1"/>
-      <text class="ui ink" x="347" y="202" font-size="14" font-weight="600" text-anchor="middle">&#8984;</text>
-      <rect x="370" y="184" width="30" height="26" rx="5" fill="#221E18" stroke="#3A352D" stroke-width="1"/>
-      <text class="ui ink" x="385" y="202" font-size="14" font-weight="600" text-anchor="middle">G</text>
-    </g>
-
-    <text class="mono muted" x="120" y="624" font-size="13" letter-spacing="2.4">SILENT NO-OP OUTSIDE WARP &#183; OPT-IN &#183; OSC 777 EMITTER &#183; NO /dev/tty: OK</text>
-
-    <rect x="64" y="708" width="1152" height="36" fill="url(#titleGrad)"/>
-    <line x1="64" y1="708" x2="1216" y2="708" stroke="#2A2620"/>
-    <text class="mono" font-size="14" y="731" letter-spacing="1">
-      <tspan x="92" class="accent" font-weight="700">&#9612; rpiv-warp</tspan>
-      <tspan dx="14" class="dim">&#9474;</tspan>
-      <tspan dx="14" class="mint">TERM_PROGRAM=WarpTerminal</tspan>
-      <tspan dx="14" class="dim">&#9474;</tspan>
-      <tspan dx="14" class="muted">pi 0.9.4</tspan>
-      <tspan dx="14" class="dim">&#9474;</tspan>
-      <tspan dx="14" class="muted">npm:@juicesharp/rpiv-warp</tspan>
-    </text>
+  <g fill="none" stroke="#8a9580" stroke-linecap="round" opacity="0.45">
+    <path d="M1120 60 q36 -52 88 -60 q40 -5 68 14" stroke-width="1.1"/>
+    <path d="M1140 80 q28 -18 60 -14 q24 3 42 14" stroke-width="0.7" opacity="0.6"/>
+    <circle cx="1210" cy="32" r="2" opacity="0.5"/>
+    <circle cx="1160" cy="60" r="1.4" opacity="0.4"/>
   </g>
 
-  <rect x="64" y="56" width="1152" height="688" rx="12" fill="none" stroke="#3A352D" stroke-width="1"/>
+  <text class="mono text-distant" x="80" y="64" font-size="11" letter-spacing="0.18em">PI AGENT EXTENSION</text>
+
+  <text class="serif ink" x="80" y="152" font-size="80" font-weight="700" letter-spacing="-2.5">rpiv<tspan class="ochre">-</tspan>warp</text>
+  <text class="mono text-quiet" x="80" y="196" font-size="19" letter-spacing="0.2">Native Warp toasts for Pi lifecycle events.</text>
+
+  <line x1="80" y1="228" x2="1200" y2="228" stroke="#2e2b27" stroke-width="1"/>
+
+  <rect x="80" y="264" width="1120" height="440" rx="3" fill="#1c1a17" stroke="#3a3631" stroke-width="1"/>
+
+  <!-- OSC sequence -->
+  <text class="mono text-distant" x="120" y="340" font-size="13" letter-spacing="0.12em">[hook]</text>
+  <text class="mono ink" x="220" y="340" font-size="13">agent_end</text>
+  <text class="mono text-distant" x="120" y="376" font-size="13" letter-spacing="0.12em">[bytes]</text>
+  <text class="mono" x="220" y="376" font-size="13"><tspan class="ochre" font-weight="700">ESC</tspan> <tspan class="text-distant">]</tspan> <tspan class="ochre" font-weight="700">777</tspan> <tspan class="text-distant">;</tspan> <tspan class="text-distant">notify</tspan> <tspan class="text-distant">;</tspan> <tspan class="sage">&#8230;</tspan> <tspan class="ochre" font-weight="700">BEL</tspan></text>
+  <text class="mono text-distant" x="120" y="412" font-size="13" letter-spacing="0.12em">[warp]</text>
+  <text class="mono" x="220" y="412" font-size="13"><tspan class="sage">&#10003;</tspan> <tspan class="text-distant">delivered</tspan></text>
+
+  <line x1="460" y1="410" x2="560" y2="410" stroke="#a8896c" stroke-width="1.4" stroke-dasharray="4 4"/>
+  <path d="M552 402 L566 410 L552 418" fill="none" stroke="#a8896c" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Toast notification -->
+  <g transform="translate(580 296)" filter="url(#toastShadow)">
+    <rect x="0" y="0" width="540" height="248" rx="12" fill="#2d2925" stroke="#3a3631" stroke-width="1"/>
+
+    <rect x="28" y="32" width="64" height="64" rx="8" fill="#ede6d3"/>
+    <text class="ui" x="60" y="76" font-size="30" font-weight="800" fill="#1c1a17" text-anchor="middle" letter-spacing="-1">P!</text>
+    <circle cx="88" cy="92" r="11" fill="#1c1a17"/>
+    <circle cx="88" cy="92" r="9" fill="#c9c0a8"/>
+    <path d="M 88 83 A 9 9 0 0 1 88 101 Z" fill="#1c1a17" opacity="0.5"/>
+
+    <g transform="translate(116 40)" stroke="#a8a29e" stroke-width="1.2" fill="none" stroke-linecap="round">
+      <circle cx="2.5" cy="2.5" r="1.4" fill="#a8a29e" stroke="none"/>
+      <circle cx="2.5" cy="12.5" r="1.4" fill="#a8a29e" stroke="none"/>
+      <circle cx="10" cy="2.5" r="1.4" fill="#a8a29e" stroke="none"/>
+      <path d="M2.5 4 V12 M10 4 V6.5 Q10 9 8 9 H5"/>
+    </g>
+    <text class="ui text-quiet" x="140" y="52" font-size="13">main</text>
+    <text class="ui ink" x="116" y="86" font-size="20" font-weight="700">Pi needs attention</text>
+    <text class="ui text-quiet" x="116" y="116" font-size="16">Waiting for your answer</text>
+
+    <line x1="28" y1="152" x2="512" y2="152" stroke="#2e2b27"/>
+
+    <text class="ui text-quiet" x="116" y="192" font-size="14">Open conversation</text>
+
+    <rect x="280" y="178" width="28" height="24" rx="4" fill="#252220" stroke="#3a3631" stroke-width="1"/>
+    <text class="ui ink" x="294" y="195" font-size="13" font-weight="600" text-anchor="middle">&#8593;</text>
+    <rect x="316" y="178" width="28" height="24" rx="4" fill="#252220" stroke="#3a3631" stroke-width="1"/>
+    <text class="ui ink" x="330" y="195" font-size="13" font-weight="600" text-anchor="middle">&#8984;</text>
+    <rect x="352" y="178" width="28" height="24" rx="4" fill="#252220" stroke="#3a3631" stroke-width="1"/>
+    <text class="ui ink" x="366" y="195" font-size="13" font-weight="600" text-anchor="middle">G</text>
+  </g>
+
+  <text class="mono text-distant" x="120" y="650" font-size="12" letter-spacing="0.2em">SILENT NO-OP OUTSIDE WARP &#183; OPT-IN &#183; OSC 777 EMITTER</text>
+
+  <line x1="80" y1="740" x2="1200" y2="740" stroke="#2e2b27" stroke-width="1"/>
+
+  <text class="mono text-distant" x="80" y="776" font-size="12" letter-spacing="0.12em">
+    <tspan class="ochre" font-weight="700">&#9612; rpiv-warp</tspan>
+    <tspan dx="12">&#9474;</tspan>
+    <tspan dx="12" class="sage">WarpTerminal</tspan>
+    <tspan dx="12">&#9474;</tspan>
+    <tspan dx="12">npm:@juicesharp/rpiv-warp</tspan>
+  </text>
 </svg>

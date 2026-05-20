@@ -2,100 +2,119 @@
   <title>rpiv-advisor — Second-opinion handoff to a stronger reviewer model</title>
   <defs>
     <style>
-      .mono { font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace; }
-      .ink { fill: #F4EFE6; }
-      .muted { fill: #8C8678; }
-      .dim { fill: #4F4A41; }
-      .accent { fill: #FF7A3D; }
-      .mint { fill: #6FD0B8; }
+      .mono { font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .serif { font-family: 'Iowan Old Style', 'Hoefler Text', Charter, 'Source Serif Pro', Georgia, serif; }
+      .ink { fill: #ede6d3; }
+      .washi { fill: #ede6d3; }
+      .text-quiet { fill: #a8a29e; }
+      .text-distant { fill: #9c968d; }
+      .ochre { fill: #a8896c; }
+      .sage { fill: #8a9580; }
+      .sage-deep { fill: #5e6b56; }
+      .alert { fill: #b04a3a; }
+      .ink-raised { fill: #252220; }
+      .ink-muted { fill: #2d2925; }
     </style>
-    <filter id="grain" x="0" y="0" width="100%" height="100%">
-      <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="13"/>
-      <feColorMatrix values="0 0 0 0 0.96  0 0 0 0 0.94  0 0 0 0 0.88  0 0 0 0.04 0"/>
-    </filter>
-    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
-      <stop offset="55%" stop-color="#070605" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000" stop-opacity="0.7"/>
+    <radialGradient id="wash-ochre" cx="25%" cy="10%" r="65%">
+      <stop offset="0%" stop-color="#a8896c" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#a8896c" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="titleGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1C1813"/>
-      <stop offset="100%" stop-color="#14110D"/>
-    </linearGradient>
-    <filter id="winShadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#000" flood-opacity="0.6"/>
-    </filter>
+    <radialGradient id="wash-sage" cx="85%" cy="90%" r="55%">
+      <stop offset="0%" stop-color="#8a9580" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#8a9580" stop-opacity="0"/>
+    </radialGradient>
+
     <radialGradient id="advisorGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#6FD0B8" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#6FD0B8" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#8a9580" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#8a9580" stop-opacity="0"/>
     </radialGradient>
-    <clipPath id="wclip"><rect x="64" y="56" width="1152" height="688" rx="12"/></clipPath>
   </defs>
 
-  <rect width="1280" height="800" fill="#070605"/>
-  <rect width="1280" height="800" filter="url(#grain)" opacity="0.45"/>
-  <rect width="1280" height="800" fill="url(#vignette)"/>
+  <!-- Background -->
+  <rect width="1280" height="800" fill="#1c1a17"/>
+  <rect width="1280" height="800" fill="url(#wash-ochre)"/>
+  <rect width="1280" height="800" fill="url(#wash-sage)"/>
 
-  <rect x="64" y="56" width="1152" height="688" rx="12" fill="#0E0D0B" filter="url(#winShadow)"/>
-
-  <g clip-path="url(#wclip)">
-    <rect x="64" y="56" width="1152" height="44" fill="url(#titleGrad)"/>
-    <line x1="64" y1="100" x2="1216" y2="100" stroke="#2A2620"/>
-    <line x1="64" y1="57" x2="1216" y2="57" stroke="#3A352D" stroke-opacity="0.6"/>
-    <circle cx="92"  cy="78" r="7" fill="#FF5F57"/>
-    <circle cx="120" cy="78" r="7" fill="#FFBD2E"/>
-    <circle cx="148" cy="78" r="7" fill="#28C840"/>
-    <text class="mono muted" x="640" y="84" font-size="14" letter-spacing="1.4" text-anchor="middle">~/rpiv-mono &#8212; pi &#8212; rpiv-advisor</text>
-
-    <text class="mono mint" x="120" y="190" font-size="46" font-weight="700"># rpiv-advisor</text>
-    <text class="mono muted" x="120" y="226" font-size="20">A stronger reviewer, on demand.</text>
-
-    <g transform="translate(220 440)">
-      <circle r="38" fill="#0E0D0B" stroke="#FF7A3D" stroke-width="2.4"/>
-      <circle r="11" fill="#FF7A3D"/>
-      <text class="mono ink" x="0" y="76" font-size="18" letter-spacing="1.4" text-anchor="middle" font-weight="700">EXECUTOR</text>
-      <text class="mono muted" x="0" y="100" font-size="13" letter-spacing="1.2" text-anchor="middle">working model</text>
-    </g>
-
-    <line x1="270" y1="440" x2="690" y2="440" stroke="#FF7A3D" stroke-width="1.8" stroke-dasharray="6 6"/>
-    <path d="M682 432 L696 440 L682 448" fill="none" stroke="#FF7A3D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    <rect x="406" y="412" width="148" height="32" fill="#15120E" stroke="#FF7A3D" stroke-width="1.2"/>
-    <text class="mono accent" x="480" y="434" font-size="18" font-weight="700" text-anchor="middle">advisor()</text>
-
-    <g transform="translate(770 440)">
-      <circle r="84" fill="url(#advisorGlow)"/>
-      <circle r="48" fill="#13110D" stroke="#6FD0B8" stroke-width="2.4"/>
-      <circle r="14" fill="#6FD0B8"/>
-      <text class="mono mint" x="0" y="86" font-size="18" letter-spacing="1.4" text-anchor="middle" font-weight="700">ADVISOR</text>
-      <text class="mono muted" x="0" y="110" font-size="13" letter-spacing="1.2" text-anchor="middle">stronger reviewer</text>
-    </g>
-
-    <line x1="822" y1="412" x2="980" y2="376" stroke="#6FD0B8" stroke-width="1.4" stroke-dasharray="3 4"/>
-    <line x1="822" y1="440" x2="980" y2="440" stroke="#6FD0B8" stroke-width="1.4" stroke-dasharray="3 4"/>
-    <line x1="822" y1="468" x2="980" y2="504" stroke="#6FD0B8" stroke-width="1.4" stroke-dasharray="3 4"/>
-
-    <rect x="980" y="358" width="120" height="36" fill="#13110D" stroke="#2A4D45" stroke-width="1"/>
-    <text class="mono mint" x="1040" y="382" font-size="16" letter-spacing="1.4" text-anchor="middle" font-weight="700">PLAN</text>
-
-    <rect x="980" y="422" width="120" height="36" fill="#13110D" stroke="#2A4D45" stroke-width="1"/>
-    <text class="mono mint" x="1040" y="446" font-size="16" letter-spacing="1.4" text-anchor="middle" font-weight="700">CORRECT</text>
-
-    <rect x="980" y="486" width="120" height="36" fill="#13110D" stroke="#2A4D45" stroke-width="1"/>
-    <text class="mono mint" x="1040" y="510" font-size="16" letter-spacing="1.4" text-anchor="middle" font-weight="700">STOP</text>
-
-    <text class="mono muted" x="640" y="624" font-size="13" letter-spacing="2.4" text-anchor="middle">REGISTERED-BUT-INACTIVE UNTIL A MODEL IS SELECTED VIA /advisor</text>
-
-    <rect x="64" y="708" width="1152" height="36" fill="url(#titleGrad)"/>
-    <line x1="64" y1="708" x2="1216" y2="708" stroke="#2A2620"/>
-    <text class="mono" font-size="14" y="731" letter-spacing="1">
-      <tspan x="92" class="accent" font-weight="700">&#9612; rpiv-advisor</tspan>
-      <tspan dx="14" class="dim">&#9474;</tspan>
-      <tspan dx="14" class="mint">reviewer: opus</tspan>
-      <tspan dx="14" class="dim">&#9474;</tspan>
-      <tspan dx="14" class="muted">pi 0.9.4</tspan>
-      <tspan dx="14" class="dim">&#9474;</tspan>
-      <tspan dx="14" class="muted">npm:@juicesharp/rpiv-advisor</tspan>
-    </text>
+  <!-- Corner brush stroke ornament -->
+  <g fill="none" stroke="#8a9580" stroke-linecap="round" opacity="0.45">
+    <path d="M1120 60 q36 -52 88 -60 q40 -5 68 14" stroke-width="1.1"/>
+    <path d="M1140 80 q28 -18 60 -14 q24 3 42 14" stroke-width="0.7" opacity="0.6"/>
+    <circle cx="1210" cy="32" r="2" opacity="0.5"/>
+    <circle cx="1160" cy="60" r="1.4" opacity="0.4"/>
   </g>
 
-  <rect x="64" y="56" width="1152" height="688" rx="12" fill="none" stroke="#3A352D" stroke-width="1"/>
+  <!-- Kicker -->
+  <text class="mono text-distant" x="80" y="64" font-size="11" letter-spacing="0.18em">PI AGENT EXTENSION</text>
+
+  <!-- Title -->
+  <text class="serif ink" x="80" y="152" font-size="80" font-weight="700" letter-spacing="-2.5">rpiv<tspan class="ochre">-</tspan>advisor</text>
+
+  <!-- Subtitle -->
+  <text class="mono text-quiet" x="80" y="196" font-size="19" letter-spacing="0.2">A stronger reviewer, on demand.</text>
+
+  <!-- Rule -->
+  <line x1="80" y1="228" x2="1200" y2="228" stroke="#2e2b27" stroke-width="1"/>
+
+  <!-- Content card -->
+  <rect x="80" y="264" width="1120" height="440" rx="3" fill="#1c1a17" stroke="#3a3631" stroke-width="1"/>
+
+
+  <!-- Diagram: Executor → advisor() → Advisor → outputs -->
+  <!-- Executor node -->
+  <g transform="translate(220 470)">
+    <circle r="44" fill="#2d2925" stroke="#a8896c" stroke-width="2"/>
+    <circle r="12" fill="#a8896c"/>
+    <text class="mono ink" x="0" y="82" font-size="16" letter-spacing="0.15em" text-anchor="middle" font-weight="700">EXECUTOR</text>
+    <text class="mono text-distant" x="0" y="106" font-size="12" letter-spacing="0.1em" text-anchor="middle">working model</text>
+  </g>
+
+  <!-- Arrow: Executor → advisor() -->
+  <line x1="270" y1="470" x2="510" y2="470" stroke="#a8896c" stroke-width="1.6" stroke-dasharray="5 5"/>
+  <path d="M500 462 L514 470 L500 478" fill="none" stroke="#a8896c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- advisor() box -->
+  <rect x="390" y="446" width="160" height="48" fill="#2d2925" stroke="#a8896c" stroke-width="1.2" rx="2"/>
+  <text class="mono ochre" x="470" y="476" font-size="18" font-weight="700" text-anchor="middle">advisor()</text>
+
+  <!-- Arrow: advisor() → Advisor -->
+  <line x1="550" y1="470" x2="710" y2="470" stroke="#a8896c" stroke-width="1.6" stroke-dasharray="5 5"/>
+  <path d="M700 462 L714 470 L700 478" fill="none" stroke="#a8896c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Advisor node -->
+  <g transform="translate(800 470)">
+    <circle r="96" fill="url(#advisorGlow)"/>
+    <circle r="52" fill="#2d2925" stroke="#8a9580" stroke-width="2"/>
+    <circle r="16" fill="#8a9580"/>
+    <text class="mono sage" x="0" y="94" font-size="16" letter-spacing="0.15em" text-anchor="middle" font-weight="700">ADVISOR</text>
+    <text class="mono text-distant" x="0" y="118" font-size="12" letter-spacing="0.1em" text-anchor="middle">stronger reviewer</text>
+  </g>
+
+  <!-- Output rays: Plan, Correct, Stop -->
+  <line x1="852" y1="420" x2="1020" y2="356" stroke="#8a9580" stroke-width="1.2" stroke-dasharray="3 4"/>
+  <line x1="852" y1="470" x2="1020" y2="470" stroke="#8a9580" stroke-width="1.2" stroke-dasharray="3 4"/>
+  <line x1="852" y1="520" x2="1020" y2="584" stroke="#8a9580" stroke-width="1.2" stroke-dasharray="3 4"/>
+
+  <rect x="1020" y="336" width="120" height="40" fill="#2d2925" stroke="#5e6b56" stroke-width="1" rx="2"/>
+  <text class="mono sage" x="1080" y="362" font-size="15" letter-spacing="0.15em" text-anchor="middle" font-weight="700">PLAN</text>
+
+  <rect x="1020" y="450" width="120" height="40" fill="#2d2925" stroke="#5e6b56" stroke-width="1" rx="2"/>
+  <text class="mono sage" x="1080" y="476" font-size="15" letter-spacing="0.15em" text-anchor="middle" font-weight="700">CORRECT</text>
+
+  <rect x="1020" y="564" width="120" height="40" fill="#2d2925" stroke="#5e6b56" stroke-width="1" rx="2"/>
+  <text class="mono sage" x="1080" y="590" font-size="15" letter-spacing="0.15em" text-anchor="middle" font-weight="700">STOP</text>
+
+  <!-- Caption -->
+  <text class="mono text-distant" x="640" y="660" font-size="12" letter-spacing="0.2em" text-anchor="middle">REGISTERED-BUT-INACTIVE UNTIL A MODEL IS SELECTED VIA /advisor</text>
+
+  <!-- Bottom rule -->
+  <line x1="80" y1="740" x2="1200" y2="740" stroke="#2e2b27" stroke-width="1"/>
+
+  <!-- Footer -->
+  <text class="mono text-distant" x="80" y="776" font-size="12" letter-spacing="0.12em">
+    <tspan class="ochre" font-weight="700">&#9612; rpiv-advisor</tspan>
+    <tspan dx="12">&#9474;</tspan>
+    <tspan dx="12" class="sage">reviewer: opus</tspan>
+    <tspan dx="12">&#9474;</tspan>
+    <tspan dx="12">npm:@juicesharp/rpiv-advisor</tspan>
+  </text>
 </svg>
