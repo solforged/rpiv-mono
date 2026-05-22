@@ -32,7 +32,8 @@ import {
 } from "./git-context.js";
 import { ARTIFACTS_SUBDIR, clearInjectionState, handleToolCallGuidance, injectRootGuidance } from "./guidance.js";
 import { findMissingSiblings } from "./package-checks.js";
-import { BUNDLED_SKILLS_DIR } from "./paths.js";
+import { BUNDLED_SKILL_NAMES } from "./paths.js";
+import { isChildSession } from "./workflow/child-session.js";
 
 const msgAgentsAdded = (n: number) => `Copied ${n} rpiv-pi agent(s) to ~/.pi/agent/agents/`;
 const msgAgentsHealed = (parts: string[]) => `Synced bundled agent(s): ${parts.join(", ")}.`;
@@ -83,7 +84,11 @@ async function onSessionStart(
 	await injectGitContext(pi, (msg) => sendGitContextMessage(pi, msg));
 	const cleanup = cleanupPerCwdAgents(ctx.cwd);
 	const agents = syncBundledAgents(false);
-	if (ctx.hasUI) {
+	// Suppress the startup-banner notifications when this session_start was
+	// fired by a workflow stage spawn — the parent session already printed
+	// them and re-emitting would double up the user's status line. Filesystem
+	// work above still runs unconditionally.
+	if (ctx.hasUI && !isChildSession()) {
 		notifyCleanup(ctx.ui, cleanup);
 		notifyAgentSyncDrift(ctx.ui, agents);
 		warnMissingSiblings(ctx.ui);
@@ -131,24 +136,13 @@ async function onAgentEnd(_event: AgentEndEvent, ctx: ExtensionContext): Promise
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Allowlist of rpiv-pi's own skill names, generated at module load by reading
-// the package's bundled skills/ directory (see paths.ts — matches the
-// `pi.skills` manifest in package.json). Prevents the status bar from
-// claiming `rpiv:` ownership of user-supplied or third-party skills.
-const OWNED_SKILL_NAMES: ReadonlySet<string> = (() => {
-	try {
-		return new Set(
-			readdirSync(BUNDLED_SKILLS_DIR, { withFileTypes: true })
-				.filter((e) => e.isDirectory())
-				.map((e) => e.name),
-		);
-	} catch {
-		return new Set<string>();
-	}
-})();
-
+// Allowlist of rpiv-pi's own skill names, sourced from the shared
+// `BUNDLED_SKILL_NAMES` constant. Prevents the status bar from claiming
+// `rpiv:` ownership of user-supplied or third-party skills. The set is
+// computed once at module load in paths.ts; both this consumer and
+// workflow/dag.ts validation share that single readdir.
 function isOwnedSkill(name: string): boolean {
-	return OWNED_SKILL_NAMES.has(name);
+	return BUNDLED_SKILL_NAMES.has(name);
 }
 
 function resetInjectionState(): void {

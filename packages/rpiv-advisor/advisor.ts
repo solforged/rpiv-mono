@@ -289,6 +289,14 @@ export function setDisabledForModels(models: Array<string | { model: string; min
 // Session restoration — called from index.ts session_start handler
 // ---------------------------------------------------------------------------
 
+// Child-session detection. Reads a process-wide flag set by rpiv-pi's workflow
+// runner around inner stage spawns. Inlined here (vs. importing) so this
+// package doesn't depend on rpiv-pi — keep the symbol string in sync with
+// rpiv-pi/extensions/rpiv-core/workflow/child-session.ts.
+const WORKFLOW_CHILD_SESSION_KEY = Symbol.for("@juicesharp/rpiv-workflow:child-session");
+const isWorkflowChildSession = (): boolean =>
+	Boolean((globalThis as unknown as Record<symbol, unknown>)[WORKFLOW_CHILD_SESSION_KEY]);
+
 export function restoreAdvisorState(ctx: ExtensionContext, pi: ExtensionAPI): void {
 	const config = loadAdvisorConfig();
 
@@ -299,9 +307,15 @@ export function restoreAdvisorState(ctx: ExtensionContext, pi: ExtensionAPI): vo
 	const parsed = parseModelKey(config.modelKey);
 	if (!parsed) return;
 
+	// Mute all restore-time notifications when this session_start was fired by
+	// a workflow stage spawn — the parent session already printed them. State
+	// mutation (setAdvisorModel/setAdvisorEffort/setActiveTools) still runs so
+	// the advisor tool stays usable inside stage sessions.
+	const canNotify = ctx.hasUI && !isWorkflowChildSession();
+
 	const model = ctx.modelRegistry.find(parsed.provider, parsed.modelId);
 	if (!model) {
-		if (ctx.hasUI) {
+		if (canNotify) {
 			ctx.ui.notify(errModelUnavailable(config.modelKey), "warning");
 		}
 		return;
@@ -313,7 +327,7 @@ export function restoreAdvisorState(ctx: ExtensionContext, pi: ExtensionAPI): vo
 	}
 
 	if (isExecutorBlocked(ctx, pi.getThinkingLevel())) {
-		if (ctx.hasUI) {
+		if (canNotify) {
 			const advisorLabel = `${model.provider}:${model.id}`;
 			ctx.ui.notify(msgAdvisorRestoredInactive(advisorLabel, config.effort), "info");
 		}
@@ -325,7 +339,7 @@ export function restoreAdvisorState(ctx: ExtensionContext, pi: ExtensionAPI): vo
 		pi.setActiveTools([...active, ADVISOR_TOOL_NAME]);
 	}
 
-	if (ctx.hasUI) {
+	if (canNotify) {
 		ctx.ui.notify(msgAdvisorRestored(`${model.provider}:${model.id}`, config.effort), "info");
 	}
 }

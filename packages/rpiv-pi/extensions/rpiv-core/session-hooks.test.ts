@@ -32,6 +32,7 @@ import { clearGitContextCache, getGitContext, resetInjectedMarker, takeGitContex
 import { clearInjectionState } from "./guidance.js";
 import { findMissingSiblings } from "./package-checks.js";
 import { registerSessionHooks } from "./session-hooks.js";
+import { clearChildSession, isChildSession, markChildSession } from "./workflow/child-session.js";
 
 const emptySync: SyncResult = {
 	added: [],
@@ -50,9 +51,11 @@ beforeEach(() => {
 	clearInjectionState();
 	clearGitContextCache();
 	resetInjectedMarker();
+	clearChildSession();
 });
 afterEach(() => {
 	rmSync(projectDir, { recursive: true, force: true });
+	clearChildSession();
 });
 
 describe("registerSessionHooks — event wiring", () => {
@@ -350,6 +353,68 @@ describe("session_start hook — notifications", () => {
 		const errCall = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[1] === "warning");
 		expect(errCall).toBeDefined();
 		expect(errCall?.[0]).toContain("1 error");
+	});
+});
+
+describe("session_start hook — workflow child-session filtering", () => {
+	it("suppresses ALL ui.notify calls when isChildSession() is true", async () => {
+		vi.mocked(syncBundledAgents).mockReturnValueOnce({
+			...emptySync,
+			added: ["a.md"],
+			updated: ["b.md"],
+			pendingUpdate: ["c.md"],
+			errors: [{ op: SYNC_OP.MANIFEST_WRITE, message: "EACCES" }],
+		});
+		vi.mocked(cleanupPerCwdAgents).mockReturnValueOnce({
+			cleanedUp: ["/tmp/old"],
+			skipped: [{ dir: "/tmp/edited", reason: "diverged" }],
+			errors: [{ op: SYNC_OP.REMOVE, message: "EBUSY" }],
+		});
+		vi.mocked(findMissingSiblings).mockReturnValueOnce([
+			{ pkg: "npm:@juicesharp/rpiv-todo", matches: /./, provides: "t" },
+		] as never);
+
+		const { pi, captured } = createMockPi({ exec: stubGitExec({}) as never });
+		registerSessionHooks(pi);
+		const ctx = createMockCtx({ cwd: projectDir, hasUI: true });
+
+		markChildSession();
+		expect(isChildSession()).toBe(true);
+		await captured.events.get("session_start")?.[0]({ reason: "startup" } as never, ctx as never);
+
+		expect(ctx.ui.notify).not.toHaveBeenCalled();
+	});
+
+	it("still runs syncBundledAgents + cleanupPerCwdAgents when isChildSession() is true (state mutation preserved)", async () => {
+		vi.mocked(syncBundledAgents).mockReturnValueOnce(emptySync);
+		vi.mocked(cleanupPerCwdAgents).mockReturnValueOnce({ cleanedUp: [], skipped: [], errors: [] });
+		vi.mocked(findMissingSiblings).mockReturnValueOnce([]);
+
+		const { pi, captured } = createMockPi({ exec: stubGitExec({}) as never });
+		registerSessionHooks(pi);
+		const ctx = createMockCtx({ cwd: projectDir, hasUI: true });
+
+		markChildSession();
+		await captured.events.get("session_start")?.[0]({ reason: "startup" } as never, ctx as never);
+
+		expect(vi.mocked(syncBundledAgents)).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(cleanupPerCwdAgents)).toHaveBeenCalledTimes(1);
+	});
+
+	it("emits notifications normally once child-session flag is cleared", async () => {
+		vi.mocked(syncBundledAgents).mockReturnValueOnce({ ...emptySync, added: ["a.md"] });
+		vi.mocked(findMissingSiblings).mockReturnValueOnce([]);
+
+		const { pi, captured } = createMockPi({ exec: stubGitExec({}) as never });
+		registerSessionHooks(pi);
+		const ctx = createMockCtx({ cwd: projectDir, hasUI: true });
+
+		markChildSession();
+		clearChildSession();
+		expect(isChildSession()).toBe(false);
+		await captured.events.get("session_start")?.[0]({ reason: "startup" } as never, ctx as never);
+
+		expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringMatching(/Copied 1 rpiv-pi agent/), "info");
 	});
 });
 

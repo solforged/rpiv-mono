@@ -1,8 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createMockCtx, createMockPi } from "@juicesharp/rpiv-test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAdvisorEffort, getAdvisorModel, restoreAdvisorState } from "./advisor.js";
+
+const WORKFLOW_CHILD_KEY = Symbol.for("@juicesharp/rpiv-workflow:child-session");
+const setChildSession = (on: boolean) => {
+	if (on) (globalThis as unknown as Record<symbol, unknown>)[WORKFLOW_CHILD_KEY] = true;
+	else delete (globalThis as unknown as Record<symbol, unknown>)[WORKFLOW_CHILD_KEY];
+};
 
 const CONFIG_PATH = join(process.env.HOME!, ".config", "rpiv-advisor", "advisor.json");
 
@@ -62,5 +68,43 @@ describe("restoreAdvisorState", () => {
 		ctx.modelRegistry = { ...ctx.modelRegistry, find: vi.fn(() => model) } as never;
 		restoreAdvisorState(ctx, pi);
 		expect(captured.activeTools).not.toContain("advisor");
+	});
+
+	describe("workflow child-session filtering", () => {
+		afterEach(() => {
+			setChildSession(false);
+		});
+
+		it("suppresses the 'Advisor restored' notify on the happy path when child-session flag is set", () => {
+			writeConfig({ modelKey: "a:m", effort: "high" });
+			const model = { provider: "a", id: "m", name: "M" } as never;
+			const { pi, captured } = createMockPi();
+			const ctx = createMockCtx({ hasUI: true });
+			ctx.modelRegistry = { ...ctx.modelRegistry, find: vi.fn(() => model) } as never;
+			const notify = ctx.ui.notify as ReturnType<typeof vi.fn>;
+
+			setChildSession(true);
+			restoreAdvisorState(ctx, pi);
+
+			// State mutation still happened.
+			expect(getAdvisorModel()).toEqual(model);
+			expect(getAdvisorEffort()).toBe("high");
+			expect(captured.activeTools).toContain("advisor");
+			// But the cosmetic notify was suppressed.
+			expect(notify).not.toHaveBeenCalled();
+		});
+
+		it("suppresses the 'no longer available' warning when child-session flag is set", () => {
+			writeConfig({ modelKey: "unknown:model" });
+			const { pi } = createMockPi();
+			const ctx = createMockCtx({ hasUI: true });
+			ctx.modelRegistry = { ...ctx.modelRegistry, find: vi.fn(() => undefined) } as never;
+			const notify = ctx.ui.notify as ReturnType<typeof vi.fn>;
+
+			setChildSession(true);
+			restoreAdvisorState(ctx, pi);
+
+			expect(notify).not.toHaveBeenCalled();
+		});
 	});
 });
