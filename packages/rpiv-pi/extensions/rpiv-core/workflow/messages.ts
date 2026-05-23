@@ -22,6 +22,8 @@ export const STATUS_PHASE = (stage: number, total: number, phase: number, phaseC
 export const MSG_STAGE_COMPLETE = (skill: string) => `✓ ${skill} completed`;
 export const MSG_STAGE_FAILED = (skill: string) => `✗ ${skill} failed — stopping workflow`;
 export const MSG_STAGE_ABORTED = (skill: string) => `⏸ ${skill} aborted (ESC) — stopping workflow`;
+export const MSG_STAGE_TRUNCATED = (skill: string) =>
+	`✗ ${skill} truncated — model hit output cap mid-reply, stopping workflow`;
 
 export const MSG_WORKFLOW_COMPLETE = (stages: number) => `rpiv: workflow complete (${stages} stages)`;
 export const MSG_WORKFLOW_CANCELLED = "rpiv: workflow cancelled";

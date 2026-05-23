@@ -43,7 +43,13 @@ import {
 	MSG_VALIDATION_EXHAUSTED,
 	MSG_VALIDATION_RETRY,
 } from "./messages.js";
-import { type BranchEntry, extractArtifactPath, hasAssistantMessage, lastAssistantStopReason } from "./transcript.js";
+import {
+	assertNever,
+	type BranchEntry,
+	extractArtifactPath,
+	hasAssistantMessage,
+	lastAssistantStopReason,
+} from "./transcript.js";
 import type { ChainCtx, PhaseSession, StageSession } from "./types.js";
 import {
 	DEFAULT_VALIDATION_RETRIES,
@@ -240,10 +246,35 @@ function readSessionOutcome(
 }
 
 function classifyStopOutcome(branch: BranchEntry[]): StopOutcome {
+	// "no assistant message at all" is the only outcome that doesn't follow from
+	// stopReason — Pi never set one because the model never spoke. Check first.
+	if (!hasAssistantMessage(branch)) return "failed";
+
 	const stopReason = lastAssistantStopReason(branch);
-	if (stopReason === "aborted") return "aborted";
-	if (!hasAssistantMessage(branch) || stopReason === "error") return "failed";
-	return "ok";
+	// `undefined` covers branches whose last assistant message predates Pi's
+	// stopReason support — treat as a clean stop, matching the historical
+	// default before stopReason landed.
+	if (stopReason === undefined) return "ok";
+
+	switch (stopReason) {
+		case "stop":
+			return "ok";
+		case "aborted":
+			return "aborted";
+		case "error":
+			return "failed";
+		case "length":
+			// Output-length cap mid-reply: the side effect is partial; halting is
+			// the only safe move. See `recordStopFailure` for the user-visible path.
+			return "truncated";
+		case "toolUse":
+			// `waitForIdle` normally settles a tool roundtrip back to "stop" before
+			// the orchestrator inspects the branch. A surfaced "toolUse" therefore
+			// signals an unsettled session — fail defensively rather than treat as ok.
+			return "failed";
+		default:
+			return assertNever(stopReason);
+	}
 }
 
 // ===========================================================================

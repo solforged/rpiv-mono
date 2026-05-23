@@ -10,7 +10,13 @@
  * only — no dag / extractors / manifest dependency.
  */
 
-import { MSG_STAGE_ABORTED, MSG_STAGE_FAILED, MSG_WORKFLOW_CANCELLED, STATUS_KEY } from "./messages.js";
+import {
+	MSG_STAGE_ABORTED,
+	MSG_STAGE_FAILED,
+	MSG_STAGE_TRUNCATED,
+	MSG_WORKFLOW_CANCELLED,
+	STATUS_KEY,
+} from "./messages.js";
 import { appendStage, readAllStages, type WorkflowStage } from "./state.js";
 import type { ChainCtx, RunState } from "./types.js";
 
@@ -38,8 +44,17 @@ export interface Audit {
 	skill: string;
 }
 
-/** What kind of terminal outcome (if any) the branch shows after the agent stops. */
-export type StopOutcome = "ok" | "aborted" | "failed";
+/**
+ * What kind of terminal outcome (if any) the branch shows after the agent stops.
+ *
+ * - `"ok"`        — model settled with `stopReason: "stop"` (or no reason set).
+ * - `"aborted"`   — user pressed ESC mid-session.
+ * - `"failed"`    — empty branch, LLM error, or other unrecoverable stop.
+ * - `"truncated"` — model hit its output-length cap; the reply is partial. The
+ *   chain MUST halt because downstream stages would otherwise run against a
+ *   half-applied side effect (e.g. a partially-written implement edit).
+ */
+export type StopOutcome = "ok" | "aborted" | "failed" | "truncated";
 
 // ---------------------------------------------------------------------------
 // Write helpers (fail-soft via state.appendStage)
@@ -111,31 +126,50 @@ export function recordStopFailure(
 	errorMessage: string,
 	onFailure?: (ctx: ChainCtx) => void,
 ): void {
-	if (stop === "aborted") {
-		recordTerminalFailure(
-			ctx,
-			audit,
-			{
-				status: "aborted",
-				notifyMsg: MSG_STAGE_ABORTED(audit.skill),
-				notifyLevel: "warning",
-				errMsg: `${audit.skill} aborted by user (ESC)`,
-			},
-			onFailure,
-		);
-		return;
+	switch (stop) {
+		case "aborted":
+			recordTerminalFailure(
+				ctx,
+				audit,
+				{
+					status: "aborted",
+					notifyMsg: MSG_STAGE_ABORTED(audit.skill),
+					notifyLevel: "warning",
+					errMsg: `${audit.skill} aborted by user (ESC)`,
+				},
+				onFailure,
+			);
+			return;
+		case "truncated":
+			// JSONL status stays "failed" — preserves the established two-value
+			// status invariant for downstream consumers (`readLastStage`, recap UI).
+			// The user-visible distinction lives in the notify message + state.error.
+			recordTerminalFailure(
+				ctx,
+				audit,
+				{
+					status: "failed",
+					notifyMsg: MSG_STAGE_TRUNCATED(audit.skill),
+					notifyLevel: "error",
+					errMsg: `${audit.skill} truncated — model hit output-length cap mid-reply`,
+				},
+				onFailure,
+			);
+			return;
+		case "failed":
+			recordTerminalFailure(
+				ctx,
+				audit,
+				{
+					status: "failed",
+					notifyMsg: MSG_STAGE_FAILED(audit.skill),
+					notifyLevel: "error",
+					errMsg: errorMessage,
+				},
+				onFailure,
+			);
+			return;
 	}
-	recordTerminalFailure(
-		ctx,
-		audit,
-		{
-			status: "failed",
-			notifyMsg: MSG_STAGE_FAILED(audit.skill),
-			notifyLevel: "error",
-			errMsg: errorMessage,
-		},
-		onFailure,
-	);
 }
 
 /** Bookkeeping for a user-cancelled fresh session — JSONL row + notify + state.error. */

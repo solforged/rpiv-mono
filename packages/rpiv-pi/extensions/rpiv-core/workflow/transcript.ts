@@ -12,6 +12,17 @@
 /** Mirror of pi-ai's StopReason union — the values Pi attaches to AssistantMessage. */
 export type StopReason = "stop" | "length" | "toolUse" | "error" | "aborted";
 
+/**
+ * Exhaustiveness helper for discriminated-union switches. Place at the
+ * `default` arm of a switch over a closed union; the call is well-typed iff
+ * every variant is handled. If a future union widening leaves a gap, the
+ * argument fails to narrow to `never` and the build breaks at the call site —
+ * forcing the gap to be addressed instead of silently fallen through.
+ */
+export function assertNever(value: never): never {
+	throw new Error(`assertNever: unreachable value ${String(value)}`);
+}
+
 /** The shape of a branch entry we care to read. */
 export type BranchEntry = {
 	type: string;
