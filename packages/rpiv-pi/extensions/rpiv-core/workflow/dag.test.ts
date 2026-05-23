@@ -11,11 +11,14 @@ import {
 } from "./dag.js";
 
 describe("DAG types and constants", () => {
-	it("WORKFLOW_DAG has 12 edges (9 auto + 2 choice + 1 predicate)", () => {
-		expect(WORKFLOW_DAG.edges).toHaveLength(12);
-		expect(WORKFLOW_DAG.edges.filter((e) => e.condition === "auto")).toHaveLength(9);
-		expect(WORKFLOW_DAG.edges.filter((e) => e.condition === "choice")).toHaveLength(2);
-		expect(WORKFLOW_DAG.edges.filter((e) => e.condition === "predicate")).toHaveLength(1);
+	it("WORKFLOW_DAG has 15 edges (10 auto + 3 choice + 2 predicate)", () => {
+		// validate is now a 2-target choice (code-review vs code-review-large
+		// per preset profile); large's post-review tail adds two auto edges and
+		// a second predicate edge on code-review-large.
+		expect(WORKFLOW_DAG.edges).toHaveLength(15);
+		expect(WORKFLOW_DAG.edges.filter((e) => e.condition === "auto")).toHaveLength(10);
+		expect(WORKFLOW_DAG.edges.filter((e) => e.condition === "choice")).toHaveLength(3);
+		expect(WORKFLOW_DAG.edges.filter((e) => e.condition === "predicate")).toHaveLength(2);
 	});
 
 	it("WORKFLOW_DAG has 3 presets", () => {
@@ -100,17 +103,20 @@ describe("resolvePreset", () => {
 		]);
 	});
 
-	it("resolves large to Path B sequence (design/plan loop after code-review)", () => {
+	it("resolves large to Path B sequence (design/plan redesign tail after code-review)", () => {
+		// Post-review stages are aliased (code-review-large, design-after-review,
+		// plan-after-review, implement-after-review) so routing reaches each
+		// distinct position rather than looping back to the pre-validate run.
 		expect(resolvePreset(WORKFLOW_DAG, "large")).toEqual([
 			"research",
 			"design",
 			"plan",
 			"implement",
 			"validate",
-			"code-review",
-			"design",
-			"plan",
-			"implement",
+			"code-review-large",
+			"design-after-review",
+			"plan-after-review",
+			"implement-after-review",
 			"commit",
 		]);
 	});

@@ -54,38 +54,38 @@ describe("[I1] validate → code-review routing in mid/large", () => {
 		expect(next).toBe("code-review");
 	});
 
-	it("routes validate → code-review (not commit) in the large preset", () => {
+	it("routes validate → code-review-large (not commit) in the large preset", () => {
+		// validate's outgoing edge is a 2-target choice that falls through to
+		// linearNextOf, so the right code-review variant is selected per preset.
 		const large = WORKFLOW_DAG.presets.large!;
 		expect(large[4]).toBe("validate");
-		expect(large[5]).toBe("code-review");
+		expect(large[5]).toBe("code-review-large");
 
 		const next = resolveNextStageId(WORKFLOW_DAG, "validate", large, 4, makeState());
-		expect(next).toBe("code-review");
+		expect(next).toBe("code-review-large");
 	});
 
-	it("small and mid presets are fully reachable from preset[0] via the edge graph", () => {
+	it("every preset is fully reachable from preset[0] via the edge graph", () => {
 		// BFS-style reachability: follow every outgoing edge to every target
-		// (auto / choice / predicate all branch), then fall back to linear
-		// advance when a node has no outgoing edge. This is the static
-		// invariant — predicate edges are dynamic at runtime, but every
-		// declared target must at least be a forward step in the preset.
-		//
-		// `large` is intentionally excluded: its preset includes design/plan/
-		// implement after code-review, but the only predicate edge from
-		// code-review targets `revise`|`commit`, neither of which threads into
-		// the large post-review design loop. That gap is a separate structural
-		// concern from I1 (it pre-existed and survives this fix); fixing it
-		// needs a per-preset code-review variant or a smarter predicate.
-		const presetsToCheck = ["small", "mid"] as const;
-		for (const name of presetsToCheck) {
-			const stageIds = WORKFLOW_DAG.presets[name]!;
+		// (auto / choice / predicate all branch); choice edges also count their
+		// linear-fallback successor since `routing.ts` picks it at runtime. The
+		// invariant is static — predicate edges decide dynamically, but every
+		// declared position in the preset must be reachable along SOME path.
+		for (const [name, stageIds] of Object.entries(WORKFLOW_DAG.presets)) {
 			const reached = new Set<number>([0]);
 			const queue: number[] = [0];
 			while (queue.length) {
 				const idx = queue.shift()!;
 				const id = stageIds[idx]!;
 				const edge = WORKFLOW_DAG.edges.find((e) => e.from === id);
-				const targets: string[] = edge ? [...edge.to] : idx + 1 < stageIds.length ? [stageIds[idx + 1]!] : [];
+				const linearTarget: string | undefined = idx + 1 < stageIds.length ? stageIds[idx + 1] : undefined;
+				const targets: string[] = edge
+					? edge.condition === "choice" && linearTarget
+						? [...edge.to, linearTarget]
+						: [...edge.to]
+					: linearTarget
+						? [linearTarget]
+						: [];
 				for (const target of targets) {
 					const targetIdx = stageIds.indexOf(target);
 					if (targetIdx < 0) continue; // edge target outside this preset — fine

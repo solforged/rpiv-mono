@@ -185,6 +185,14 @@ export const skillNode = (
 	inputSchema: overrides?.inputSchema,
 });
 
+// Shared schema for every code-review node — gates the predicate edges so
+// `retryUntilValid` rejects a manifest missing `severeIssueCount` before
+// the routing layer ever sees it.
+const CODE_REVIEW_SCHEMA = Type.Object(
+	{ severeIssueCount: Type.Integer({ minimum: 0 }) },
+	{ additionalProperties: true },
+);
+
 export const WORKFLOW_DAG: WorkflowDag = {
 	edges: [
 		{ from: "discover", to: ["research"], condition: "auto" },
@@ -192,15 +200,21 @@ export const WORKFLOW_DAG: WorkflowDag = {
 		{ from: "plan", to: ["implement"], condition: "auto" },
 		{ from: "blueprint", to: ["implement"], condition: "auto" },
 		{ from: "implement", to: ["validate"], condition: "auto" },
-		// `small` terminates at validate (no review tail) — `routing.ts:atEndOfPreset`
-		// short-circuits before this edge is consulted there, so re-routing
-		// validate → code-review here is safe for small AND wires the review
-		// loop that mid/large declare in their preset arrays.
-		{ from: "validate", to: ["code-review"], condition: "auto" },
+		// `validate` is the build/review boundary; its actual successor depends
+		// on the preset profile (small: none, mid: code-review, large:
+		// code-review-large). Choice edges fall through to `linearNextOf` in
+		// `routing.ts`, so the right successor is picked from each preset's
+		// linear sequence at runtime — no per-preset edge fanout needed.
+		{ from: "validate", to: ["code-review", "code-review-large"], condition: "choice" },
 		// The second implement in `mid` is a distinct node id (skill stays
 		// "implement") so routing's Array.indexOf reaches the post-revise
 		// position instead of the original first implement.
 		{ from: "revise", to: ["implement-after-revise"], condition: "auto" },
+		// `large`'s post-review redesign tail. Distinct node ids let routing
+		// reach idx 6..8 of the large preset instead of looping back to the
+		// pre-validate design at idx 1.
+		{ from: "design-after-review", to: ["plan-after-review"], condition: "auto" },
+		{ from: "plan-after-review", to: ["implement-after-review"], condition: "auto" },
 		{ from: "outline-test-cases", to: ["write-test-cases"], condition: "auto" },
 		{ from: "migrate-to-guidance", to: ["annotate-guidance"], condition: "auto" },
 
@@ -211,6 +225,12 @@ export const WORKFLOW_DAG: WorkflowDag = {
 			to: ["revise", "commit"],
 			condition: "predicate",
 			predicate: predicateThreshold("severeIssueCount", 0, "revise", "commit"),
+		},
+		{
+			from: "code-review-large",
+			to: ["design-after-review", "commit"],
+			condition: "predicate",
+			predicate: predicateThreshold("severeIssueCount", 0, "design-after-review", "commit"),
 		},
 	],
 
@@ -248,10 +268,10 @@ export const WORKFLOW_DAG: WorkflowDag = {
 			"plan",
 			"implement",
 			"validate",
-			"code-review",
-			"design",
-			"plan",
-			"implement",
+			"code-review-large",
+			"design-after-review",
+			"plan-after-review",
+			"implement-after-review",
 			"commit",
 		],
 	},
@@ -271,10 +291,17 @@ export const WORKFLOW_DAG: WorkflowDag = {
 		// route to commit. `retryUntilValid` runs this check before the
 		// predicate fires, so absent fields surface as a validation retry —
 		// not as a stealth termination of the workflow.
-		"code-review": skillNode("code-review", "artifact-emit", {
-			outputSchema: Type.Object({ severeIssueCount: Type.Integer({ minimum: 0 }) }, { additionalProperties: true }),
-		}),
+		"code-review": skillNode("code-review", "artifact-emit", { outputSchema: CODE_REVIEW_SCHEMA }),
+		// Large-preset variant: same skill + schema, distinct node id so it can
+		// own a predicate edge to design-after-review (vs revise for mid).
+		"code-review-large": skillNode("code-review", "artifact-emit", { outputSchema: CODE_REVIEW_SCHEMA }),
 		"outline-test-cases": skillNode("outline-test-cases", "artifact-emit"),
+
+		// Artifact-producing aliases for the large-preset post-review redesign
+		// tail. Same skill bodies as design/plan; distinct node ids so routing
+		// reaches idx 6..8 of large via Array.indexOf rather than looping back.
+		"design-after-review": skillNode("design", "artifact-emit"),
+		"plan-after-review": skillNode("plan", "artifact-emit"),
 
 		// Action skills (side-effect is the work; no chained artifact).
 		"write-test-cases": skillNode("write-test-cases", "agent-end"),
@@ -283,6 +310,8 @@ export const WORKFLOW_DAG: WorkflowDag = {
 		// post-revise position in `mid` instead of looping back to the
 		// pre-validate implement via Array.indexOf.
 		"implement-after-revise": skillNode("implement", "agent-end"),
+		// Large-preset companion to design-after-review / plan-after-review.
+		"implement-after-review": skillNode("implement", "agent-end"),
 		commit: skillNode("commit", "agent-end", { snapshot: gitHeadSnapshot, extractor: gitCommitExtractor }),
 		"annotate-guidance": skillNode("annotate-guidance", "agent-end"),
 		"migrate-to-guidance": skillNode("migrate-to-guidance", "agent-end"),
