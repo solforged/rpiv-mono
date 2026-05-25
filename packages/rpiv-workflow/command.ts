@@ -15,29 +15,8 @@ import { formatWorkflowDetails, formatWorkflowList } from "./preview.js";
 import { runWorkflow } from "./runner.js";
 
 // ---------------------------------------------------------------------------
-// Arg parsing
+// Public entry
 // ---------------------------------------------------------------------------
-
-/** First token is a workflow name iff recognised; otherwise the whole arg is input + default. */
-export function parseArgs(
-	args: string,
-	loaded: { workflowNames: ReadonlySet<string>; default: string },
-): { workflow: string; input: string } {
-	const trimmed = args.trim();
-	if (!trimmed) {
-		return { workflow: loaded.default, input: "" };
-	}
-
-	const firstSpace = trimmed.indexOf(" ");
-	const firstToken = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
-
-	if (loaded.workflowNames.has(firstToken)) {
-		const remaining = firstSpace === -1 ? "" : trimmed.slice(firstSpace + 1).trim();
-		return { workflow: firstToken, input: remaining };
-	}
-
-	return { workflow: loaded.default, input: trimmed };
-}
 
 export function registerWorkflowCommand(pi: ExtensionAPI): void {
 	pi.registerCommand("wf", {
@@ -45,6 +24,10 @@ export function registerWorkflowCommand(pi: ExtensionAPI): void {
 		handler: (args: string, ctx: ExtensionCommandContext) => handleWorkflowCommand(pi, args, ctx),
 	});
 }
+
+// ---------------------------------------------------------------------------
+// Orchestrator
+// ---------------------------------------------------------------------------
 
 async function handleWorkflowCommand(pi: ExtensionAPI, args: string, ctx: ExtensionCommandContext): Promise<void> {
 	if (!ctx.hasUI) {
@@ -91,9 +74,34 @@ async function handleWorkflowCommand(pi: ExtensionAPI, args: string, ctx: Extens
 	}
 }
 
-function pickWorkflow(loaded: LoadedWorkflows, name: string): Workflow | undefined {
-	return loaded.workflows.find((w) => w.name === name);
+// ---------------------------------------------------------------------------
+// Arg parsing (exported for tests)
+// ---------------------------------------------------------------------------
+
+/** First token is a workflow name iff recognised; otherwise the whole arg is input + default. */
+export function parseArgs(
+	args: string,
+	loaded: { workflowNames: ReadonlySet<string>; default: string },
+): { workflow: string; input: string } {
+	const trimmed = args.trim();
+	if (!trimmed) {
+		return { workflow: loaded.default, input: "" };
+	}
+
+	const firstSpace = trimmed.indexOf(" ");
+	const firstToken = firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace);
+
+	if (loaded.workflowNames.has(firstToken)) {
+		const remaining = firstSpace === -1 ? "" : trimmed.slice(firstSpace + 1).trim();
+		return { workflow: firstToken, input: remaining };
+	}
+
+	return { workflow: loaded.default, input: trimmed };
 }
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
 
 /** Surface every load + validation issue as a notify, prefixed by severity. */
 function surfaceIssues(ctx: ExtensionCommandContext, issues: readonly Issue[]): void {
@@ -111,4 +119,8 @@ function formatIssue(issue: Issue): string {
 	const nodeTag = issue.node ? ` — node "${issue.node}"` : "";
 	const pathTag = issue.path ? ` (${issue.path})` : "";
 	return `[${renderConfigLayer(issue.layer)} config${pathTag}] workflow "${issue.workflow}"${nodeTag}: ${issue.message}`;
+}
+
+function pickWorkflow(loaded: LoadedWorkflows, name: string): Workflow | undefined {
+	return loaded.workflows.find((w) => w.name === name);
 }
