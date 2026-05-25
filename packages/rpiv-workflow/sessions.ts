@@ -170,9 +170,9 @@ function haltPhase(ctx: RunnerCtx, s: PhaseSession, stop: Exclude<StopSignal, "s
 /**
  * Returns true on successful write — caller gates `onSuccess` on this so the
  * chain advances only when the audit row landed. On failure, leaves
- * `state.artifactPath` / `state.manifest` at their prior values (the disk has
- * no row for what just completed, so the in-memory pointers must not advance
- * past it) and sets `state.error` to halt the run.
+ * `state.manifest` / `state.fallbackArtifactPath` at their prior values (the
+ * disk has no row for what just completed, so the in-memory pointers must not
+ * advance past it) and sets `state.error` to halt the run.
  */
 function recordStageSuccess(
 	ctx: RunnerCtx,
@@ -191,9 +191,12 @@ function recordStageSuccess(
 		s.state.error = ERR_AUDIT_WRITE_FAILED(s.skill);
 		return false;
 	}
-	if (manifest?.artifact_path) s.state.artifactPath = manifest.artifact_path;
-	else if (artifact) s.state.artifactPath = artifact;
+	// Manifest is set whenever present; fallback only carries the bare
+	// transcript path when the manifest doesn't already supply one (e.g.
+	// sideEffectExtractor with no upstream artifact_path). currentArtifactPath
+	// prefers the manifest field and falls through to fallback otherwise.
 	if (manifest) s.state.manifest = manifest;
+	if (!manifest?.artifact_path && artifact) s.state.fallbackArtifactPath = artifact;
 	s.state.stagesCompleted++;
 	ctx.ui.notify(MSG_STAGE_COMPLETE(s.skill), "info");
 	return true;
@@ -211,7 +214,9 @@ function recordPhaseSuccess(s: PhaseSession, artifact: string | undefined): bool
 		s.state.error = ERR_AUDIT_WRITE_FAILED(phaseRowLabel(s));
 		return false;
 	}
-	if (artifact) s.state.artifactPath = artifact;
+	// Phases never carry manifests — write goes through the fallback slot,
+	// which currentArtifactPath surfaces when no manifest is on hand.
+	if (artifact) s.state.fallbackArtifactPath = artifact;
 	s.state.stagesCompleted++;
 	return true;
 }

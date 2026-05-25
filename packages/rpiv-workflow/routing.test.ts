@@ -12,7 +12,7 @@ import type { RunState } from "./types.js";
 
 const makeState = (manifestData?: Record<string, unknown>): RunState => ({
 	originalInput: "",
-	artifactPath: undefined,
+	fallbackArtifactPath: undefined,
 	manifest: manifestData
 		? { kind: "artifact-md", data: manifestData, meta: { skill: "source", stageNumber: 1, ts: "", runId: "" } }
 		: undefined,

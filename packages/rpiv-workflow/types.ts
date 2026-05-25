@@ -23,13 +23,13 @@ export interface RunState {
 	/** Frozen — the user's `/wf` argument. */
 	originalInput: string;
 	/**
-	 * Denormalised mirror of `manifest.artifact_path` — load-bearing for the
-	 * prompt builder and `countPhases`, which need the path at idx 0 before
-	 * any manifest exists. Always equal to the most recently set
-	 * `manifest.artifact_path` (or the bare path extracted from the transcript
-	 * when the manifest is absent).
+	 * Bare-path mirror written only when (a) an `agent-end` stage extracted
+	 * a path without a manifest, or (b) a phase row committed an artifact.
+	 * Reads must go through `currentArtifactPath(state)` (internal-utils.ts)
+	 * — that helper prefers `state.manifest?.artifact_path` when available,
+	 * so a direct read of this field is a hint of a missed accessor.
 	 */
-	artifactPath: string | undefined;
+	fallbackArtifactPath: string | undefined;
 	manifest: Manifest | undefined;
 	/** Stages whose JSONL row landed on disk. */
 	stagesCompleted: number;

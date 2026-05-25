@@ -5,6 +5,7 @@
  * Used for action skills (commit, implement) where the work IS the side effect.
  */
 
+import { currentArtifactPath } from "../internal-utils.js";
 import type { Extractor } from "../manifest.js";
 
 /**
@@ -21,7 +22,7 @@ export const sideEffectExtractor: Extractor = {
 		return {
 			payload: {
 				kind: "side-effect",
-				artifact_path: ctx.state.artifactPath,
+				artifact_path: currentArtifactPath(ctx.state),
 				data: {},
 			},
 		};

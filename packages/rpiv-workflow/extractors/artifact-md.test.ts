@@ -30,7 +30,7 @@ const ctxOf = (cwd: string, branch: unknown): ExtractorCtx => ({
 	stageIndex: 0,
 	state: {
 		originalInput: "",
-		artifactPath: undefined,
+		fallbackArtifactPath: undefined,
 		manifest: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,

@@ -22,6 +22,7 @@ import { createMockPi, createMockSessionChain, mockAssistantMessage } from "@jui
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NodeDef, NodeSchema } from "./api.js";
+import { currentArtifactPath } from "./internal-utils.js";
 import type { Extractor, ExtractorCtx, ExtractorFn, ExtractorResult } from "./manifest.js";
 import {
 	ERR_VALIDATION_FAILED,
@@ -44,7 +45,7 @@ import { MAX_VALIDATION_RETRIES, MAX_VALIDATION_RETRY_TIMEOUT_MS } from "./valid
 /** Bare RunState — every field nullish/zero so tests pin the deltas sessions.ts produces. */
 const freshRunState = (overrides: Partial<RunState> = {}): RunState => ({
 	originalInput: "x",
-	artifactPath: undefined,
+	fallbackArtifactPath: undefined,
 	manifest: undefined,
 	stagesCompleted: 0,
 	lastAllocatedStageNumber: 0,
@@ -531,12 +532,12 @@ describe("sessions — extractor resolution", () => {
 		expect(state.error).toMatch(/finished without producing a \.rpiv\/artifacts/);
 	});
 
-	it("agent-end default routes to sideEffectExtractor (inherits prior artifactPath)", async () => {
+	it("agent-end default routes to sideEffectExtractor (inherits prior artifact path)", async () => {
 		const chain = createMockSessionChain({
 			cwd: tmpDir,
 			steps: [{ branch: [mockAssistantMessage("done")] }],
 		});
-		const state = freshRunState({ artifactPath: ".rpiv/artifacts/research/r.md" });
+		const state = freshRunState({ fallbackArtifactPath: ".rpiv/artifacts/research/r.md" });
 		const onSuccess = vi.fn(async () => {});
 
 		await runStageSession(
@@ -550,8 +551,8 @@ describe("sessions — extractor resolution", () => {
 		);
 
 		expect(onSuccess).toHaveBeenCalledTimes(1);
-		// sideEffectExtractor copies state.artifactPath into manifest.artifact_path,
-		// which recordStageSuccess mirrors back into state.
+		// sideEffectExtractor pulls currentArtifactPath(state) into
+		// manifest.artifact_path; recordStageSuccess then sets state.manifest.
 		expect(state.manifest?.artifact_path).toBe(".rpiv/artifacts/research/r.md");
 	});
 });
@@ -827,8 +828,8 @@ describe("sessions — success persistence", () => {
 			}),
 		);
 
-		expect(state.artifactPath).toBe(manifestPath);
 		expect(state.manifest?.artifact_path).toBe(manifestPath);
+		expect(currentArtifactPath(state)).toBe(manifestPath);
 	});
 
 	it("no manifest.artifact_path → falls back to outcome.artifact from transcript", async () => {
@@ -843,12 +844,14 @@ describe("sessions — success persistence", () => {
 			stageSession({
 				cwd: tmpDir,
 				state,
-				// agent-end + sideEffectExtractor leaves artifact_path = state.artifactPath (undefined).
+				// agent-end + sideEffectExtractor leaves artifact_path = currentArtifactPath(state) (undefined),
+				// so no manifest is set; the transcript-extracted path lands in fallbackArtifactPath.
 				node: node({ completionStrategy: "agent-end" }),
 			}),
 		);
 
-		expect(state.artifactPath).toBe(".rpiv/artifacts/research/r.md");
+		expect(state.fallbackArtifactPath).toBe(".rpiv/artifacts/research/r.md");
+		expect(currentArtifactPath(state)).toBe(".rpiv/artifacts/research/r.md");
 	});
 
 	it("stagesCompleted bumps exactly once per successful stage", async () => {

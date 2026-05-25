@@ -10,6 +10,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { currentArtifactPath } from "../internal-utils.js";
 import type {
 	Extractor,
 	ExtractorCtx,
@@ -123,7 +124,7 @@ async function countFilesChanged(cwd: string, baselineSha: string, headSha: stri
 function wrap(ctx: ExtractorCtx, data: GitCommitData): ExtractorPayload<"git-commit", GitCommitData> {
 	return {
 		kind: "git-commit",
-		artifact_path: ctx.state.artifactPath,
+		artifact_path: currentArtifactPath(ctx.state),
 		data,
 	};
 }

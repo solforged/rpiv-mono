@@ -51,7 +51,7 @@ const findWorkflow = (name: string): Workflow => {
 
 const makeState = (manifestData?: Record<string, unknown>): RunState => ({
 	originalInput: "",
-	artifactPath: undefined,
+	fallbackArtifactPath: undefined,
 	manifest: manifestData
 		? { kind: "artifact-md", data: manifestData, meta: { skill: "code-review", stageNumber: 1, ts: "", runId: "" } }
 		: undefined,
@@ -252,7 +252,7 @@ describe("[I3] recordStage signals success and advances stageNumber monotonicall
 
 	const freshState = (): RunState => ({
 		originalInput: "",
-		artifactPath: undefined,
+		fallbackArtifactPath: undefined,
 		manifest: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,

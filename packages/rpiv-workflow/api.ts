@@ -39,7 +39,7 @@ export type NodeSchema<Input = unknown, Output = Input> = StandardSchemaV1<Input
  * - `"artifact-emit"` — protocol skills that write `.rpiv/artifacts/<bucket>/<file>.md`.
  *   The runner halts the chain if the path doesn't appear in the transcript.
  * - `"agent-end"` — action skills (commit, implement) where the side effect IS
- *   the work; the chain inherits the prior `state.artifactPath`.
+ *   the work; the chain inherits the prior `currentArtifactPath(state)`.
  */
 export type CompletionStrategy = "artifact-emit" | "agent-end";
 

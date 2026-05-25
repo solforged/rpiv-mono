@@ -6,7 +6,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { resolveUnderCwd } from "./internal-utils.js";
+import { currentArtifactPath, resolveUnderCwd } from "./internal-utils.js";
 import { MSG_STAGE_COMPLETE, STATUS_KEY, STATUS_PHASE } from "./messages.js";
 import type { PhaseSession, RunContext, RunnerCtx } from "./types.js";
 
@@ -87,7 +87,7 @@ export async function runImplementPhases(
 		cwd,
 		runId,
 		state,
-		prompt: `/skill:${skill} ${state.artifactPath} Phase ${p}`,
+		prompt: `/skill:${skill} ${currentArtifactPath(state)} Phase ${p}`,
 		skill,
 		phaseIndex: p,
 		phaseCount,

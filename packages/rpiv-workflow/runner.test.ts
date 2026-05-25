@@ -604,7 +604,7 @@ describe("runWorkflow", () => {
 			writeArtifact(tmpDir, ".rpiv/artifacts/designs/d.md");
 			// research (artifact-emit) → commit (agent-end, no artifact) → design (artifact-emit).
 			// Design must see research's artifact path as its input — commit
-			// doesn't reset state.artifactPath when it produces nothing.
+			// doesn't reset currentArtifactPath(state) when it produces nothing.
 			const chain = createMockSessionChain({
 				cwd: tmpDir,
 				steps: [

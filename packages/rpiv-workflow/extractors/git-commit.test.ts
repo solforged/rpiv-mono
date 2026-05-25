@@ -39,7 +39,7 @@ const snapshotCtx = (cwd: string): SnapshotCtx => ({
 	stageIndex: 0,
 	state: {
 		originalInput: "",
-		artifactPath: undefined,
+		fallbackArtifactPath: undefined,
 		manifest: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,
@@ -159,12 +159,12 @@ describe("artifact_path inheritance", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("inherits state.artifactPath into the payload (chain continuity)", async () => {
+	it("inherits currentArtifactPath(state) into the payload (chain continuity)", async () => {
 		const ctx: ExtractorCtx = {
 			...extractorCtx(tmpDir, { baselineSha: "abc" }),
 			state: {
 				...snapshotCtx(tmpDir).state,
-				artifactPath: ".rpiv/artifacts/x.md",
+				fallbackArtifactPath: ".rpiv/artifacts/x.md",
 			},
 		};
 		const result = await gitCommitExtractor.extract(ctx);

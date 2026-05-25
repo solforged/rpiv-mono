@@ -7,10 +7,24 @@
  */
 
 import { isAbsolute, join } from "node:path";
+import type { RunState } from "./types.js";
 
 /** Exhaustiveness guard for discriminated-union switches. */
 export function assertNever(value: never): never {
 	throw new Error(`assertNever: unreachable value ${String(value)}`);
+}
+
+/**
+ * Canonical accessor for "the artifact path the chain is currently carrying."
+ * Prefers `state.manifest?.artifact_path` (set by artifact-emit stages with a
+ * structured frontmatter manifest); falls back to `state.fallbackArtifactPath`,
+ * which is only written when (a) an `agent-end` stage extracted a bare path
+ * without a manifest, or (b) a phase row committed an artifact. Replaces the
+ * load-bearing `state.artifactPath` mirror from earlier versions — the helper
+ * IS the invariant.
+ */
+export function currentArtifactPath(state: RunState): string | undefined {
+	return state.manifest?.artifact_path ?? state.fallbackArtifactPath;
 }
 
 /**

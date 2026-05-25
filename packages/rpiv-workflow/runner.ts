@@ -19,6 +19,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import type { NodeDef, Workflow } from "./api.js";
 import { notifyPartialArtifacts, nowIso, recordStage } from "./audit.js";
 import { countPhases, runImplementPhases } from "./implement-phases.js";
+import { currentArtifactPath } from "./internal-utils.js";
 import {
 	ERR_BACKWARD_JUMP_EXHAUSTED,
 	ERR_INPUT_VALIDATION_FAILED,
@@ -134,7 +135,7 @@ export async function runWorkflow(
 
 	const state: RunState = {
 		originalInput: options.input,
-		artifactPath: undefined,
+		fallbackArtifactPath: undefined,
 		manifest: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,
@@ -164,7 +165,7 @@ export async function runWorkflow(
 	return {
 		stagesCompleted: state.stagesCompleted,
 		success: state.success,
-		lastArtifact: state.artifactPath,
+		lastArtifact: currentArtifactPath(state),
 		error: state.error,
 		...(state.droppedRoutingRows.length > 0 ? { droppedRoutingRows: state.droppedRoutingRows } : {}),
 	};
@@ -263,7 +264,7 @@ async function runStage(curCtx: RunnerCtx, currentName: string, idx: number, run
 	if (!ensureSkillRegistered(curCtx, stage, run)) return;
 
 	const isStart = currentName === run.workflow.start;
-	const inputForStage = isStart ? run.state.originalInput : run.state.artifactPath!;
+	const inputForStage = isStart ? run.state.originalInput : currentArtifactPath(run.state)!;
 	const prompt = buildPrompt(stage.skill, inputForStage);
 	curCtx.ui.setStatus(STATUS_KEY, STATUS_STAGE(stage.stageNumber, run.totalStages, stage.skill));
 	const branchOffset = computeBranchOffset(curCtx, stage.node);
@@ -327,8 +328,9 @@ function resolveStageNode(currentName: string, idx: number, run: RunContext): Re
  * running the single-stage path.
  */
 async function tryPhaseFanout(curCtx: RunnerCtx, stage: ResolvedStage, idx: number, run: RunContext): Promise<boolean> {
-	if (!(stage.skill === "implement" && run.state.artifactPath)) return false;
-	const phaseCount = countPhases(run.state.artifactPath, run.cwd);
+	const current = currentArtifactPath(run.state);
+	if (!(stage.skill === "implement" && current)) return false;
+	const phaseCount = countPhases(current, run.cwd);
 	if (phaseCount === 0) return false;
 	await runImplementPhases(curCtx, idx, stage.name, stage.skill, 1, phaseCount, run, {
 		runPhaseSession,
@@ -386,7 +388,7 @@ function ensureUpstreamArtifact(
 	currentName: string,
 	run: RunContext,
 ): boolean {
-	if (currentName === run.workflow.start || run.state.artifactPath) return true;
+	if (currentName === run.workflow.start || currentArtifactPath(run.state)) return true;
 	recordStage(run.cwd, run.runId, { skill: stage.skill, status: "failed", ts: nowIso() }, run.state);
 	curCtx.ui.setStatus(STATUS_KEY, undefined);
 	curCtx.ui.notify(MSG_MISSING_ARTIFACT(stage.skill), "error");
