@@ -108,7 +108,7 @@ describe("action", () => {
 			before: () => "pre-state",
 			extract: (ctx) => {
 				captured.push(ctx.snapshot);
-				return { payload: { kind: "test", data: {} } };
+				return { kind: "ok", payload: { kind: "test", data: {} } };
 			},
 		};
 		const n = action({ extractor });

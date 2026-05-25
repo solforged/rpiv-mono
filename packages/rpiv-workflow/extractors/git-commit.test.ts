@@ -111,7 +111,8 @@ describe.runIf(hasGit)("gitCommitExtractor.extract", () => {
 		execSync('git commit -q -m "add a"', { cwd: tmpDir });
 
 		const result = await gitCommitExtractor.extract(extractorCtx(tmpDir, snap));
-		expect(result.fatal).toBeUndefined();
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
 		expect(result.payload?.kind).toBe("git-commit");
 		const data = result.payload?.data as {
 			sha: string;
@@ -131,6 +132,8 @@ describe.runIf(hasGit)("gitCommitExtractor.extract", () => {
 		initRepo(tmpDir);
 		const snap = await gitHeadSnapshot(snapshotCtx(tmpDir));
 		const result = await gitCommitExtractor.extract(extractorCtx(tmpDir, snap));
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
 		const data = result.payload?.data as { noOp?: boolean; prevSha: string };
 		expect(data.noOp).toBe(true);
 		expect(data.prevSha).toBe(snap?.baselineSha);
@@ -138,7 +141,8 @@ describe.runIf(hasGit)("gitCommitExtractor.extract", () => {
 
 	it("emits noOp payload when snapshot is undefined (snapshot failure upstream)", async () => {
 		const result = await gitCommitExtractor.extract(extractorCtx(tmpDir, undefined));
-		expect(result.fatal).toBeUndefined();
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
 		const data = result.payload?.data as { noOp?: boolean };
 		expect(data.noOp).toBe(true);
 	});
@@ -146,7 +150,8 @@ describe.runIf(hasGit)("gitCommitExtractor.extract", () => {
 	it("emits noOp payload when cwd is not a git repo (collectCommitData returns null)", async () => {
 		// Synthesize a snapshot with a fake baseline; extract runs in a non-repo cwd.
 		const result = await gitCommitExtractor.extract(extractorCtx(tmpDir, { baselineSha: "deadbeef" }));
-		expect(result.fatal).toBeUndefined();
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
 		const data = result.payload?.data as { noOp?: boolean };
 		expect(data.noOp).toBe(true);
 	});
@@ -172,7 +177,8 @@ describe("artifact_path inheritance", () => {
 			},
 		};
 		const result = await gitCommitExtractor.extract(ctx);
-		expect(result.payload?.artifact_path).toBe(".rpiv/artifacts/x.md");
+		expect(result.kind).toBe("ok");
+		if (result.kind === "ok") expect(result.payload?.artifact_path).toBe(".rpiv/artifacts/x.md");
 	});
 });
 

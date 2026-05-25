@@ -97,6 +97,7 @@ const scriptedExtract = (results: ExtractorResult[]): ExtractorFn => {
 const scriptedExtractor = (results: ExtractorResult[]): Extractor => ({ extract: scriptedExtract(results) });
 
 const okPayload = (data: unknown): ExtractorResult => ({
+	kind: "ok",
 	payload: { kind: "test", data: data as Record<string, unknown> },
 });
 
@@ -347,7 +348,7 @@ describe("sessions — validation retry loop", () => {
 					maxValidationRetries: 2,
 					extractor: scriptedExtractor([
 						okPayload({ foo: 1 }),
-						{ payload: undefined, fatal: "extractor blew up mid-retry" },
+						{ kind: "fatal", message: "extractor blew up mid-retry" },
 					]),
 				}),
 				onFailure,
@@ -376,7 +377,7 @@ describe("sessions — validation retry loop", () => {
 					maxValidationRetries: 2,
 					extractor: scriptedExtractor([
 						okPayload({ foo: 1 }),
-						{ payload: undefined }, // no fatal, no payload — sessions.ts must synthesize fatal
+						{ kind: "ok", payload: undefined }, // ok-no-payload on retry — sessions.ts must synthesize fatal
 					]),
 				}),
 				onFailure,
@@ -827,7 +828,9 @@ describe("sessions — success persistence", () => {
 				state,
 				node: node({
 					completionStrategy: "agent-end",
-					extractor: { extract: () => ({ payload: { kind: "test", artifact_path: manifestPath, data: {} } }) },
+					extractor: {
+						extract: () => ({ kind: "ok", payload: { kind: "test", artifact_path: manifestPath, data: {} } }),
+					},
 				}),
 			}),
 		);
@@ -1009,7 +1012,7 @@ describe("sessions — halt routing", () => {
 				state,
 				node: node({
 					completionStrategy: "agent-end",
-					extractor: { extract: () => ({ payload: undefined, fatal: "extractor said no" }) },
+					extractor: { extract: () => ({ kind: "fatal", message: "extractor said no" }) },
 				}),
 				onFailure,
 			}),

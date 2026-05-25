@@ -35,19 +35,20 @@ export const artifactMdExtractor: Extractor = {
 		const artifactPath = extractArtifactPath(ctx.branch, ctx.branchOffset);
 
 		if (!artifactPath) {
-			return { payload: undefined, fatal: ERR_NO_ARTIFACT_PATH(ctx.skill) };
+			return { kind: "fatal", message: ERR_NO_ARTIFACT_PATH(ctx.skill) };
 		}
 
 		const absolutePath = resolveUnderCwd(ctx.cwd, artifactPath);
 
 		if (!existsSync(absolutePath)) {
-			return { payload: undefined, fatal: ERR_FILE_MISSING(artifactPath) };
+			return { kind: "fatal", message: ERR_FILE_MISSING(artifactPath) };
 		}
 
 		const content = readFileSync(absolutePath, "utf-8");
 		const { frontmatter } = parseFrontmatter(content);
 
 		return {
+			kind: "ok",
 			payload: {
 				kind: "artifact-md",
 				artifact_path: artifactPath,

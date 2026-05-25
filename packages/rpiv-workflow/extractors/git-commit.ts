@@ -68,10 +68,10 @@ export async function gitHeadSnapshot(ctx: SnapshotCtx): Promise<GitHeadSnapshot
  */
 async function extractGitCommit(ctx: ExtractorCtx): Promise<ExtractorResult> {
 	const snapshot = ctx.snapshot as GitHeadSnapshot | undefined;
-	if (!snapshot?.baselineSha) return { payload: wrap(ctx, noOpData("")) };
+	if (!snapshot?.baselineSha) return { kind: "ok", payload: wrap(ctx, noOpData("")) };
 
 	const data = (await collectCommitData(ctx.cwd, snapshot.baselineSha)) ?? noOpData(snapshot.baselineSha);
-	return { payload: wrap(ctx, data) };
+	return { kind: "ok", payload: wrap(ctx, data) };
 }
 
 /**

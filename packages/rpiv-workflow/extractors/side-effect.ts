@@ -20,6 +20,7 @@ import type { Extractor } from "../manifest.js";
 export const sideEffectExtractor: Extractor = {
 	extract(ctx) {
 		return {
+			kind: "ok",
 			payload: {
 				kind: "side-effect",
 				artifact_path: currentArtifactPath(ctx.state),

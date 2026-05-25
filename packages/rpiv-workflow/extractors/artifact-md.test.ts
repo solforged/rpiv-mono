@@ -64,15 +64,16 @@ describe("artifactMdExtractor", () => {
 	it("returns fatal when no artifact path appears in the transcript", async () => {
 		const ctx = ctxOf(tmpDir, branchWithText("I did not announce a path"));
 		const result = await artifactMdExtractor.extract(ctx);
-		expect(result.fatal).toMatch(/finished without producing a \.rpiv\/artifacts/);
-		expect(result.payload).toBeUndefined();
+		expect(result.kind).toBe("fatal");
+		if (result.kind === "fatal") expect(result.message).toMatch(/finished without producing a \.rpiv\/artifacts/);
 	});
 
 	it("returns fatal when the announced path does not exist on disk", async () => {
 		const text = "Done: .rpiv/artifacts/research/missing.md";
 		const ctx = ctxOf(tmpDir, branchWithText(text));
 		const result = await artifactMdExtractor.extract(ctx);
-		expect(result.fatal).toMatch(/file does not exist on disk/);
+		expect(result.kind).toBe("fatal");
+		if (result.kind === "fatal") expect(result.message).toMatch(/file does not exist on disk/);
 	});
 
 	it("parses YAML frontmatter into payload.data and surfaces the artifact path", async () => {
@@ -80,10 +81,12 @@ describe("artifactMdExtractor", () => {
 		writeFileSync(join(tmpDir, rel), "---\nstatus: ok\nblockers_count: 0\n---\n\n# body\n");
 		const ctx = ctxOf(tmpDir, branchWithText(`Wrote ${rel}`));
 		const result = await artifactMdExtractor.extract(ctx);
-		expect(result.fatal).toBeUndefined();
-		expect(result.payload?.kind).toBe("artifact-md");
-		expect(result.payload?.artifact_path).toBe(rel);
-		expect(result.payload?.data).toMatchObject({ status: "ok", blockers_count: 0 });
+		expect(result.kind).toBe("ok");
+		if (result.kind === "ok") {
+			expect(result.payload?.kind).toBe("artifact-md");
+			expect(result.payload?.artifact_path).toBe(rel);
+			expect(result.payload?.data).toMatchObject({ status: "ok", blockers_count: 0 });
+		}
 	});
 
 	it("returns empty data when the file exists but has no frontmatter", async () => {
@@ -91,8 +94,8 @@ describe("artifactMdExtractor", () => {
 		writeFileSync(join(tmpDir, rel), "# no frontmatter here\n\nbody only\n");
 		const ctx = ctxOf(tmpDir, branchWithText(`Wrote ${rel}`));
 		const result = await artifactMdExtractor.extract(ctx);
-		expect(result.fatal).toBeUndefined();
-		expect(result.payload?.data).toEqual({});
+		expect(result.kind).toBe("ok");
+		if (result.kind === "ok") expect(result.payload?.data).toEqual({});
 	});
 
 	it("returns the relative .rpiv/artifacts path even when the announcement embeds an absolute prefix", async () => {
@@ -105,7 +108,10 @@ describe("artifactMdExtractor", () => {
 		const abs = join(tmpDir, rel);
 		const ctx = ctxOf(tmpDir, branchWithText(`Wrote ${abs}`));
 		const result = await artifactMdExtractor.extract(ctx);
-		expect(result.payload?.artifact_path).toBe(rel);
-		expect(result.payload?.data).toMatchObject({ foo: 1 });
+		expect(result.kind).toBe("ok");
+		if (result.kind === "ok") {
+			expect(result.payload?.artifact_path).toBe(rel);
+			expect(result.payload?.data).toMatchObject({ foo: 1 });
+		}
 	});
 });

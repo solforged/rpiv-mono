@@ -78,22 +78,27 @@ export interface ExtractorPayload<K extends string = string, D = unknown> {
 }
 
 /**
- * `payload: undefined` → stage complete, chain inherits prior manifest
- * (agent-end nodes). `fatal` set → runner halts with this message.
+ * Three-way return from an extractor — same shape as
+ * `sessions.ts:ExtractionOutcome` so the runner's `runExtractor` is a
+ * pure pass-through (no translation step).
+ *
+ *   `kind: "ok"` + `payload: ExtractorPayload`  — stage emitted an artifact.
+ *   `kind: "ok"` + `payload: undefined`         — agent-end stage; chain inherits prior manifest.
+ *   `kind: "fatal"`                              — extractor cannot satisfy its contract; runner halts.
  */
-export interface ExtractorResult {
-	payload: ExtractorPayload | undefined;
-	fatal?: string;
-}
+export type ExtractorResult =
+	| { kind: "ok"; payload: ExtractorPayload | undefined }
+	| { kind: "fatal"; message: string };
 
 /**
- * Contract — when must `fatal` be set? If the protocol REQUIRES a structural
- * output (artifact-emit nodes that promise an `.rpiv/artifacts/...` path) and
- * that output is absent, the extractor MUST set `fatal`. Agent-end / side-
- * effect extractors never set `fatal` — success follows from `classifyStop`.
+ * Contract — when must an extractor return `{ kind: "fatal" }`? If the
+ * protocol REQUIRES a structural output (artifact-emit nodes that promise
+ * an `.rpiv/artifacts/...` path) and that output is absent, the extractor
+ * MUST return `{ kind: "fatal", message }`. Agent-end / side-effect
+ * extractors never return `"fatal"` — success follows from `classifyStop`.
  *
- * Missing `fatal` records as success regardless of payload, so every concrete
- * extractor must declare which side of the contract it sits on.
+ * Every concrete extractor declares which side of the contract it sits on
+ * by the `kind` values it can return.
  */
 export type ExtractorFn = (ctx: ExtractorCtx) => Promise<ExtractorResult> | ExtractorResult;
 

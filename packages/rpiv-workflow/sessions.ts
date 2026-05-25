@@ -311,7 +311,7 @@ async function runExtractor(
 	finalize: (p: ExtractorPayload) => Manifest,
 ): Promise<{ kind: "ok"; manifest: Manifest | undefined } | { kind: "fatal"; message: string }> {
 	const result = await extractor.extract(extractorCtx);
-	if (result.fatal) return { kind: "fatal", message: result.fatal };
+	if (result.kind === "fatal") return result;
 	return { kind: "ok", manifest: result.payload ? finalize(result.payload) : undefined };
 }
 
