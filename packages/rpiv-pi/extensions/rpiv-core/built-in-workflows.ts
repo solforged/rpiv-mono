@@ -30,7 +30,7 @@ import {
 	type Workflow,
 } from "@juicesharp/rpiv-workflow";
 import { Type } from "typebox";
-import { rpivArtifactMdOutcome } from "./artifact-collector.js";
+import { rpivBucketOutcome } from "./artifact-collector.js";
 
 const CODE_REVIEW_SCHEMA = typeboxSchema(
 	Type.Object({ blockers_count: Type.Integer({ minimum: 0 }) }, { additionalProperties: true }),
@@ -98,9 +98,9 @@ const smallWorkflow = defineWorkflow({
 	name: "small",
 	start: "blueprint",
 	stages: {
-		blueprint: produces({ outcome: rpivArtifactMdOutcome }),
+		blueprint: produces({ outcome: rpivBucketOutcome("plans") }),
 		implement: acts({ fanout: PHASE_FANOUT }),
-		validate: produces({ outcome: rpivArtifactMdOutcome }),
+		validate: produces({ outcome: rpivBucketOutcome("validation") }),
 	},
 	edges: {
 		blueprint: "implement",
@@ -118,12 +118,12 @@ const midWorkflow = defineWorkflow({
 	name: "mid",
 	start: "research",
 	stages: {
-		research: produces({ outcome: rpivArtifactMdOutcome }),
-		blueprint: produces({ outcome: rpivArtifactMdOutcome }),
+		research: produces({ outcome: rpivBucketOutcome("research") }),
+		blueprint: produces({ outcome: rpivBucketOutcome("plans") }),
 		implement: acts({ fanout: PHASE_FANOUT }),
-		validate: produces({ outcome: rpivArtifactMdOutcome }),
-		"code-review": produces({ outcome: rpivArtifactMdOutcome, outputSchema: CODE_REVIEW_SCHEMA }),
-		revise: produces({ outcome: rpivArtifactMdOutcome }),
+		validate: produces({ outcome: rpivBucketOutcome("validation") }),
+		"code-review": produces({ outcome: rpivBucketOutcome("reviews"), outputSchema: CODE_REVIEW_SCHEMA }),
+		revise: produces({ outcome: rpivBucketOutcome("plans") }),
 		"implement-after-revise": acts({ skill: "implement", fanout: PHASE_FANOUT }),
 		commit: acts({ outcome: gitCommitOutcome }),
 	},
@@ -148,18 +148,18 @@ const largeWorkflow = defineWorkflow({
 	name: "large",
 	start: "research",
 	stages: {
-		research: produces({ outcome: rpivArtifactMdOutcome }),
-		design: produces({ outcome: rpivArtifactMdOutcome }),
-		plan: produces({ outcome: rpivArtifactMdOutcome }),
+		research: produces({ outcome: rpivBucketOutcome("research") }),
+		design: produces({ outcome: rpivBucketOutcome("designs") }),
+		plan: produces({ outcome: rpivBucketOutcome("plans") }),
 		implement: acts({ fanout: PHASE_FANOUT }),
-		validate: produces({ outcome: rpivArtifactMdOutcome }),
+		validate: produces({ outcome: rpivBucketOutcome("validation") }),
 		"code-review-large": produces({
 			skill: "code-review",
-			outcome: rpivArtifactMdOutcome,
+			outcome: rpivBucketOutcome("reviews"),
 			outputSchema: CODE_REVIEW_SCHEMA,
 		}),
-		"design-after-review": produces({ skill: "design", outcome: rpivArtifactMdOutcome }),
-		"plan-after-review": produces({ skill: "plan", outcome: rpivArtifactMdOutcome }),
+		"design-after-review": produces({ skill: "design", outcome: rpivBucketOutcome("designs") }),
+		"plan-after-review": produces({ skill: "plan", outcome: rpivBucketOutcome("plans") }),
 		"implement-after-review": acts({ skill: "implement", fanout: PHASE_FANOUT }),
 		commit: acts({ outcome: gitCommitOutcome }),
 	},
@@ -187,10 +187,10 @@ const reviewLoopWorkflow = defineWorkflow({
 	name: "review-loop",
 	start: "code-review",
 	stages: {
-		"code-review": produces({ outcome: rpivArtifactMdOutcome, outputSchema: REVIEW_STATUS_SCHEMA }),
-		blueprint: produces({ outcome: rpivArtifactMdOutcome }),
+		"code-review": produces({ outcome: rpivBucketOutcome("reviews"), outputSchema: REVIEW_STATUS_SCHEMA }),
+		blueprint: produces({ outcome: rpivBucketOutcome("plans") }),
 		implement: acts({ fanout: PHASE_FANOUT }),
-		validate: produces({ outcome: rpivArtifactMdOutcome }),
+		validate: produces({ outcome: rpivBucketOutcome("validation") }),
 		commit: acts({ outcome: gitCommitOutcome }),
 	},
 	edges: {
