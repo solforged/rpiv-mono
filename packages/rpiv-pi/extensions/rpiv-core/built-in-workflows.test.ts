@@ -77,9 +77,9 @@ describe("[I1] validate → code-review routing in built-in workflows", () => {
 		}
 	});
 
-	it("revise routes forward to implement-after-revise (not the original implement)", () => {
+	it("revise loops back to implement (backward edge re-enters implement → validate → code-review cycle)", () => {
 		const mid = findWorkflow("mid");
-		expect(mid.edges.revise).toBe("implement-after-revise");
+		expect(mid.edges.revise).toBe("implement");
 	});
 });
 

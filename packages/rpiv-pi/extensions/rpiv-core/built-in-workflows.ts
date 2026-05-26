@@ -115,7 +115,9 @@ const featWorkflow = defineWorkflow({
 
 // ===========================================================================
 // mid — research → blueprint → implement → validate → code-review →
-//       (revise → implement-after-revise → commit) | commit
+//       (revise → implement → loop) | commit
+//       Loops until code-review reports zero blockers, bounded by the
+//       runner's maxBackwardJumps (default 2 → up to 3 review iterations).
 // ===========================================================================
 
 const midWorkflow = defineWorkflow({
@@ -128,7 +130,6 @@ const midWorkflow = defineWorkflow({
 		validate: produces({ outcome: rpivBucketOutcome("validation") }),
 		"code-review": produces({ outcome: rpivBucketOutcome("reviews"), outputSchema: CODE_REVIEW_SCHEMA }),
 		revise: produces({ outcome: rpivBucketOutcome("plans") }),
-		"implement-after-revise": acts({ skill: "implement", fanout: PHASE_FANOUT }),
 		commit: acts({ outcome: gitCommitOutcome }),
 	},
 	edges: {
@@ -137,15 +138,20 @@ const midWorkflow = defineWorkflow({
 		implement: "validate",
 		validate: "code-review",
 		"code-review": gate("blockers_count", { revise: gt(0), commit: eq(0) }),
-		revise: "implement-after-revise",
-		"implement-after-revise": "commit",
+		// Backward edge: revise → implement re-enters the implement/validate/
+		// code-review cycle. Bounded by the runner's default maxBackwardJumps
+		// (2), permitting at most 3 review iterations before the guard halts.
+		revise: "implement",
 		commit: "stop",
 	},
 });
 
 // ===========================================================================
 // large — research → design → plan → implement → validate → code-review-large →
-//         (design-after-review → plan-after-review → implement-after-review → commit) | commit
+//         (design → loop) | commit
+//         Loops the full design/plan/implement/validate/review chain until
+//         code-review-large reports zero blockers, bounded by the runner's
+//         maxBackwardJumps (default 2 → up to 3 review iterations).
 // ===========================================================================
 
 const largeWorkflow = defineWorkflow({
@@ -162,9 +168,6 @@ const largeWorkflow = defineWorkflow({
 			outcome: rpivBucketOutcome("reviews"),
 			outputSchema: CODE_REVIEW_SCHEMA,
 		}),
-		"design-after-review": produces({ skill: "design", outcome: rpivBucketOutcome("designs") }),
-		"plan-after-review": produces({ skill: "plan", outcome: rpivBucketOutcome("plans") }),
-		"implement-after-review": acts({ skill: "implement", fanout: PHASE_FANOUT }),
 		commit: acts({ outcome: gitCommitOutcome }),
 	},
 	edges: {
@@ -173,10 +176,11 @@ const largeWorkflow = defineWorkflow({
 		plan: "implement",
 		implement: "validate",
 		validate: "code-review-large",
-		"code-review-large": gate("blockers_count", { "design-after-review": gt(0), commit: eq(0) }),
-		"design-after-review": "plan-after-review",
-		"plan-after-review": "implement-after-review",
-		"implement-after-review": "commit",
+		// Backward edge: code-review-large → design re-enters the full
+		// design/plan/implement/validate/review cycle. Bounded by the
+		// runner's default maxBackwardJumps (2), permitting at most 3
+		// review iterations before the guard halts.
+		"code-review-large": gate("blockers_count", { design: gt(0), commit: eq(0) }),
 		commit: "stop",
 	},
 });
