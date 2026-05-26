@@ -27,6 +27,8 @@ beforeEach(() => {
 	delete process.env.FIRECRAWL_API_KEY;
 	delete process.env.SEARXNG_API_KEY;
 	delete process.env.SEARXNG_URL;
+	delete process.env.OLLAMA_API_KEY;
+	delete process.env.OLLAMA_HOST;
 	rmSync(CONFIG_PATH, { force: true });
 });
 
@@ -1110,7 +1112,7 @@ describe("/web-search-config command", () => {
 		const selectCall = (ctx.ui.select as ReturnType<typeof vi.fn>).mock.calls[0];
 		const labels = selectCall[1] as string[];
 		expect(labels[0]).toBe("Exa ✓ (configured)");
-		expect(labels.slice(1)).toEqual(["Brave", "Tavily", "Serper", "Jina", "Firecrawl", "SearXNG"]);
+		expect(labels.slice(1)).toEqual(["Brave", "Tavily", "Serper", "Jina", "Firecrawl", "SearXNG", "Ollama"]);
 		expect(labels.filter((l) => l.includes("✓"))).toHaveLength(1);
 
 		const saved = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
@@ -1613,5 +1615,306 @@ describe("configureSearxng", () => {
 		expect(calls[1].label).toMatch(/key/i);
 		// Mask hides the middle but reveals the first/last 4 chars
 		expect(calls[1].placeholder).toContain("exis...-key");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Ollama provider-specific tests
+// ---------------------------------------------------------------------------
+// Ollama is structurally similar to SearXNG: self-hosted with configurable
+// baseUrl, optional API key, and vendor fetch endpoint. Kept out of
+// PROVIDER_MATRIX because the optional key breaks the generic "no key" test.
+
+describe("web_search.execute — ollama", () => {
+	const OLLAMA_OK_BODY = JSON.stringify({
+		results: [
+			{ title: "T1", url: "https://result.example/1", content: "snippet 1" },
+			{ title: "T2", url: "https://result.example/2", content: "snippet 2" },
+		],
+	});
+
+	it("uses env URL (wins over config and default)", async () => {
+		process.env.OLLAMA_HOST = "http://env-host:9000";
+		writeConfig({ provider: "ollama", baseUrls: { ollama: "http://config-host:7000" } });
+		const stub = stubFetch([
+			{
+				match: (u) => u.startsWith("http://env-host:9000/"),
+				response: () => new Response(OLLAMA_OK_BODY, { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "hello" }, undefined as never, undefined as never, createMockCtx());
+		const callUrl = new URL(stub.calls[0].url);
+		expect(`${callUrl.protocol}//${callUrl.host}`).toBe("http://env-host:9000");
+		expect(callUrl.pathname).toBe("/api/experimental/web_search");
+		const body = JSON.parse(stub.calls[0].init?.body as string);
+		expect(body.query).toBe("hello");
+		expect(body.max_results).toBeDefined();
+	});
+
+	it("falls back to config URL when env is unset", async () => {
+		writeConfig({ provider: "ollama", baseUrls: { ollama: "http://config-host:7000" } });
+		const stub = stubFetch([
+			{
+				match: (u) => u.startsWith("http://config-host:7000/"),
+				response: () => new Response(OLLAMA_OK_BODY, { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		expect(new URL(stub.calls[0].url).host).toBe("config-host:7000");
+	});
+
+	it("falls back to default URL (http://localhost:11434) when neither env nor config is set", async () => {
+		writeConfig({ provider: "ollama" });
+		const stub = stubFetch([
+			{
+				match: (u) => u.startsWith("http://localhost:11434/"),
+				response: () => new Response(OLLAMA_OK_BODY, { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		expect(new URL(stub.calls[0].url).host).toBe("localhost:11434");
+	});
+
+	it("trailing slash on baseUrl does not produce a double-slash", async () => {
+		process.env.OLLAMA_HOST = "http://host:11434/";
+		writeConfig({ provider: "ollama" });
+		const stub = stubFetch([
+			{ match: (u) => u.includes("host:11434"), response: () => new Response(OLLAMA_OK_BODY, { status: 200 }) },
+		]);
+		const { captured } = registerAndCapture();
+		await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		expect(stub.calls[0].url).not.toMatch(/\/\/api/);
+	});
+
+	it("sends Bearer Authorization when API key is configured", async () => {
+		process.env.OLLAMA_API_KEY = "test-key";
+		writeConfig({ provider: "ollama" });
+		const stub = stubFetch([{ match: () => true, response: () => new Response(OLLAMA_OK_BODY, { status: 200 }) }]);
+		const { captured } = registerAndCapture();
+		await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		const headers = stub.calls[0].init?.headers as Record<string, string>;
+		expect(headers.Authorization).toBe("Bearer test-key");
+	});
+
+	it("omits Authorization when no API key is configured", async () => {
+		writeConfig({ provider: "ollama" });
+		const stub = stubFetch([{ match: () => true, response: () => new Response(OLLAMA_OK_BODY, { status: 200 }) }]);
+		const { captured } = registerAndCapture();
+		await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		const headers = stub.calls[0].init?.headers as Record<string, string>;
+		expect(headers.Authorization).toBeUndefined();
+	});
+
+	it("returns no-results envelope on empty results array", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([
+			{ match: () => true, response: () => new Response(JSON.stringify({ results: [] }), { status: 200 }) },
+		]);
+		const { captured } = registerAndCapture();
+		const r = await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		expect(r?.content[0]).toMatchObject({ text: expect.stringContaining("No results found") });
+	});
+
+	it("wraps non-2xx as 'Ollama Search API error (status)'", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([{ match: () => true, response: () => new Response("oops", { status: 500 }) }]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_search")
+				?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/Ollama Search API error \(500\)/);
+	});
+
+	it("401 attaches the 'ollama signin' hint", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([{ match: () => true, response: () => new Response("unauthorized", { status: 401 }) }]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_search")
+				?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/ollama signin/);
+	});
+
+	it("404 attaches the 'may not support web search' hint", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([{ match: () => true, response: () => new Response("not found", { status: 404 }) }]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_search")
+				?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/may not support web search/);
+	});
+
+	it("normalizes missing fields on result rows to empty strings", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([
+			{ match: () => true, response: () => new Response(JSON.stringify({ results: [{}] }), { status: 200 }) },
+		]);
+		const { captured } = registerAndCapture();
+		const r = await captured.tools
+			.get("web_search")
+			?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx());
+		const result = (r?.details as { results: Array<{ title: string; url: string; snippet: string }> }).results[0];
+		expect(result.title).toBe("");
+		expect(result.url).toBe("");
+		expect(result.snippet).toBe("");
+	});
+});
+
+describe("web_fetch.execute — ollama vendor fetch", () => {
+	it("ollama fetch uses /api/experimental/web_fetch endpoint", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([
+			{
+				match: (u) => u.includes("/api/experimental/web_fetch"),
+				response: () =>
+					new Response(
+						JSON.stringify({ title: "Test Page", content: "extracted text", links: ["https://example.com"] }),
+						{
+							status: 200,
+						},
+					),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		const r = await captured.tools
+			.get("web_fetch")
+			?.execute?.("tc", { url: "https://example.com" }, undefined as never, undefined as never, createMockCtx());
+		expect(r?.content[0]).toMatchObject({ text: expect.stringContaining("extracted text") });
+		expect(r?.content[0]).toMatchObject({ text: expect.stringContaining("Test Page") });
+	});
+
+	it("ollama fetch throws when content is empty", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([
+			{
+				match: (u) => u.includes("/api/experimental/web_fetch"),
+				response: () => new Response(JSON.stringify({ title: "Empty", content: "", links: [] }), { status: 200 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_fetch")
+				?.execute?.("tc", { url: "https://example.com" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/no content returned/);
+	});
+
+	it("ollama fetch wraps non-2xx as 'Ollama Fetch API error (status)'", async () => {
+		writeConfig({ provider: "ollama" });
+		stubFetch([
+			{
+				match: (u) => u.includes("/api/experimental/web_fetch"),
+				response: () => new Response("bad", { status: 502 }),
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_fetch")
+				?.execute?.("tc", { url: "https://example.com" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/Ollama Fetch API error \(502\)/);
+	});
+});
+
+describe("web_search.execute — ollama network errors", () => {
+	it("surfaces connection-refused with actionable hint", async () => {
+		writeConfig({ provider: "ollama" });
+		const connRefusedError = new TypeError("fetch failed");
+		(connRefusedError as unknown as { cause: { code: string } }).cause = { code: "ECONNREFUSED" };
+		stubFetch([
+			{
+				match: () => true,
+				response: () => {
+					throw connRefusedError;
+				},
+			},
+		]);
+		const { captured } = registerAndCapture();
+		await expect(
+			captured.tools
+				.get("web_search")
+				?.execute?.("tc", { query: "x" }, undefined as never, undefined as never, createMockCtx()),
+		).rejects.toThrow(/Could not connect to Ollama.*Make sure Ollama is running/);
+	});
+});
+
+describe("/web-search-config command — ollama", () => {
+	it("prompts URL first, then optional key, and persists both", async () => {
+		const { captured } = registerAndCapture();
+		const ctx = createMockCtx({ hasUI: true });
+		(ctx.ui.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("Ollama");
+		const inputMock = ctx.ui.input as ReturnType<typeof vi.fn>;
+		inputMock.mockResolvedValueOnce("http://my-ollama:11434").mockResolvedValueOnce("my-api-key");
+		await captured.commands.get("web-search-config")?.handler("", ctx as never);
+		const saved = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+		expect(saved).toMatchObject({
+			provider: "ollama",
+			baseUrls: { ollama: "http://my-ollama:11434" },
+			apiKeys: { ollama: "my-api-key" },
+		});
+		expect(inputMock.mock.calls).toHaveLength(2);
+		expect(String(inputMock.mock.calls[0][0])).toMatch(/URL/i);
+		expect(String(inputMock.mock.calls[1][0])).toMatch(/key/i);
+	});
+
+	it("empty URL input falls back to the default URL and leaves key unset", async () => {
+		const { captured } = registerAndCapture();
+		const ctx = createMockCtx({ hasUI: true });
+		(ctx.ui.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("Ollama");
+		(ctx.ui.input as ReturnType<typeof vi.fn>).mockResolvedValueOnce("").mockResolvedValueOnce("");
+		await captured.commands.get("web-search-config")?.handler("", ctx as never);
+		const saved = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+		expect(saved.provider).toBe("ollama");
+		expect(saved.baseUrls.ollama).toBe("http://localhost:11434");
+		expect(saved.apiKeys?.ollama).toBeUndefined();
+	});
+
+	it("URL cancel (undefined) leaves config untouched", async () => {
+		writeConfig({ provider: "brave", apiKey: "existing" });
+		const { captured } = registerAndCapture();
+		const ctx = createMockCtx({ hasUI: true });
+		(ctx.ui.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("Ollama");
+		(ctx.ui.input as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+		await captured.commands.get("web-search-config")?.handler("", ctx as never);
+		const saved = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+		expect(saved.provider).toBe("brave");
+		expect(saved.apiKey).toBe("existing");
+	});
+
+	it("keeps existing URL and key when both inputs are empty", async () => {
+		writeConfig({
+			provider: "ollama",
+			baseUrls: { ollama: "http://existing:11434" },
+			apiKeys: { ollama: "existing-key" },
+		});
+		const { captured } = registerAndCapture();
+		const ctx = createMockCtx({ hasUI: true });
+		(ctx.ui.select as ReturnType<typeof vi.fn>).mockResolvedValueOnce("Ollama ✓ (configured)");
+		(ctx.ui.input as ReturnType<typeof vi.fn>).mockResolvedValueOnce("").mockResolvedValueOnce("");
+		await captured.commands.get("web-search-config")?.handler("", ctx as never);
+		const saved = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+		expect(saved.baseUrls.ollama).toBe("http://existing:11434");
+		expect(saved.apiKeys.ollama).toBe("existing-key");
 	});
 });
