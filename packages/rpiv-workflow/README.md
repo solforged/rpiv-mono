@@ -76,13 +76,16 @@ Two factories for the two stage kinds:
 
 > **Inheritance note (until Phase 10).** `acts()` stages currently inherit the upstream artifact list with no opt-out. A future `terminal()` factory will close this gap — a side-effect stage that does NOT pass upstream artifacts forward. Track in the polish plan.
 
-Conditional routing uses `threshold(field, n, ifAbove, ifBelow)`:
+Conditional routing uses `gate(field, branches)` with the bundled predicate helpers (`gt` / `gte` / `lt` / `lte` / `eq`):
 
 ```ts
-edges: { "code-review": threshold("blockers_count", 0, "revise", "commit") }
+import { gate, gt, eq } from "@juicesharp/rpiv-workflow";
+edges: { "code-review": gate("blockers_count", { revise: gt(0), commit: eq(0) }) }
 ```
 
-Hand-rolled predicates use `definePredicate(targets, fn)` (reads `output.data`, requires the source stage to declare an `outputSchema`) or `defineStatePredicate(targets, fn)` (consults only `state` / `output.meta`).
+Branches are evaluated against `Number(output.data[field])` in declaration order; the first matching predicate wins, and the last declared branch is the fallback when no predicate matches (so missing or non-numeric fields route to the last branch).
+
+Hand-rolled routes use `defineRoute(targets, fn, opts?)` — by default `opts.readsData` is `true` (reads `output.data`, requires the source stage to declare an `outputSchema`); pass `{ readsData: false }` for a route that consults only `state` / `output.meta`.
 
 ## Programmatic registration
 

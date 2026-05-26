@@ -10,15 +10,15 @@ import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
 import {
 	acts,
-	definePredicate,
-	defineStatePredicate,
+	defineRoute,
 	defineWorkflow,
 	type EdgeFn,
+	gate,
 	type OutputSpec,
 	produces,
-	threshold,
 	type Workflow,
 } from "./api.js";
+import { eq, gt } from "./predicates.js";
 import { typeboxSchema } from "./typebox-adapter.js";
 
 // ---------------------------------------------------------------------------
@@ -115,11 +115,11 @@ describe("acts", () => {
 });
 
 // ---------------------------------------------------------------------------
-// threshold — predicate builder
+// gate — route builder
 // ---------------------------------------------------------------------------
 
-describe("threshold", () => {
-	const pick: EdgeFn = threshold("severeIssueCount", 0, "revise", "commit");
+describe("gate", () => {
+	const pick: EdgeFn = gate("severeIssueCount", { revise: gt(0), commit: eq(0) });
 
 	const ctxWithCount = (n: number) =>
 		({
@@ -132,15 +132,15 @@ describe("threshold", () => {
 			state: {} as never,
 		}) as const;
 
-	it("picks ifAbove when value > threshold", () => {
+	it("picks the first matching branch (value > 0 → revise)", () => {
 		expect(pick(ctxWithCount(3))).toBe("revise");
 	});
 
-	it("picks ifBelow when value equals threshold (not strictly greater)", () => {
+	it("picks an exact match when its predicate matches (value === 0 → commit)", () => {
 		expect(pick(ctxWithCount(0))).toBe("commit");
 	});
 
-	it("picks ifBelow when value is missing (treats as 0)", () => {
+	it("falls back to the last branch when value is missing (treats as NaN)", () => {
 		expect(
 			pick({
 				output: {
@@ -154,11 +154,11 @@ describe("threshold", () => {
 		).toBe("commit");
 	});
 
-	it("picks ifBelow when output is undefined (treats as 0)", () => {
+	it("falls back to the last branch when output is undefined", () => {
 		expect(pick({ output: undefined, state: {} as never })).toBe("commit");
 	});
 
-	it("picks ifBelow when value coerces to NaN (non-numeric field)", () => {
+	it("falls back to the last branch when value coerces to NaN (non-numeric field)", () => {
 		expect(
 			pick({
 				output: {
@@ -172,25 +172,27 @@ describe("threshold", () => {
 		).toBe("commit");
 	});
 
-	it("threshold attaches .targets so validation can enumerate branches", () => {
+	it("attaches .targets so validation can enumerate branches", () => {
 		expect(pick.targets).toEqual(["revise", "commit"]);
+	});
+
+	it("throws when branches is an empty object", () => {
+		expect(() => gate("count", {})).toThrow(/at least one possible return value/);
 	});
 });
 
 // ---------------------------------------------------------------------------
-// definePredicate — structural enforcement of the .targets contract
+// defineRoute — structural enforcement of the .targets contract
 // ---------------------------------------------------------------------------
 
-describe("definePredicate", () => {
+describe("defineRoute", () => {
 	it("attaches the declared targets to the returned function", () => {
-		const fn = definePredicate(["good", "bad"], () => "good");
+		const fn = defineRoute(["good", "bad"], () => "good");
 		expect(fn.targets).toEqual(["good", "bad"]);
 	});
 
 	it("preserves the underlying function's runtime behavior", () => {
-		const fn = definePredicate(["good", "bad"], (ctx) =>
-			(ctx.output?.data as { ok?: boolean })?.ok ? "good" : "bad",
-		);
+		const fn = defineRoute(["good", "bad"], (ctx) => ((ctx.output?.data as { ok?: boolean })?.ok ? "good" : "bad"));
 		expect(
 			fn({
 				output: {
@@ -205,22 +207,12 @@ describe("definePredicate", () => {
 	});
 
 	it("throws when the targets array is empty", () => {
-		expect(() => definePredicate([], () => "x")).toThrow(/at least one possible return value/);
+		expect(() => defineRoute([], () => "x")).toThrow(/at least one possible return value/);
 	});
-});
 
-// ---------------------------------------------------------------------------
-// defineStatePredicate — same .targets contract; no READS_FRONTMATTER marker
-// ---------------------------------------------------------------------------
-
-describe("defineStatePredicate", () => {
-	it("attaches the declared targets to the returned function", () => {
-		const fn = defineStatePredicate(["a", "b"], () => "a");
+	it("accepts readsData: false to opt out of the outputSchema lint", () => {
+		const fn = defineRoute(["a", "b"], () => "a", { readsData: false });
 		expect(fn.targets).toEqual(["a", "b"]);
-	});
-
-	it("throws when the targets array is empty", () => {
-		expect(() => defineStatePredicate([], () => "x")).toThrow(/at least one possible return value/);
 	});
 });
 
@@ -243,7 +235,7 @@ describe("composition smoke", () => {
 			},
 			edges: {
 				research: "code-review",
-				"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+				"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				revise: "commit",
 				commit: "stop",
 			},

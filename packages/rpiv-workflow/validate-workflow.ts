@@ -16,7 +16,7 @@
 
 import {
 	type EdgeTarget,
-	marksFrontmatter,
+	marksReadsData,
 	ON_INVALID_VALUES,
 	SESSION_POLICIES,
 	STAGE_KINDS,
@@ -270,27 +270,28 @@ function checkFanoutContinueInvariant(
 }
 
 /**
- * Predicate edges that read `output.data[field]` (i.e. `definePredicate`,
- * `threshold`, and any future factory that auto-attaches the
- * `READS_FRONTMATTER` marker) should fire on data the source stage has
- * validated against its `outputSchema`. If the schema is absent, the
- * validation-retry loop never runs and the predicate may read an undefined
+ * Route edges that read `output.data[field]` (i.e. `defineRoute(...)` with
+ * the default `readsData: true`, `gate(...)`, and any future factory that
+ * auto-attaches the `READS_DATA` marker) should fire on data the source
+ * stage has validated against its `outputSchema`. If the schema is absent,
+ * the validation-retry loop never runs and the route may read an undefined
  * field — routing decisions silently default.
  *
- * Predicates authored via `defineStatePredicate` consult only `state` or
- * `output.meta` and carry no marker — exempt from this lint.
+ * Routes authored via `defineRoute(targets, fn, { readsData: false })`
+ * consult only `state` or `output.meta` and carry no marker — exempt from
+ * this lint.
  */
 function checkPredicateSchemas(w: Workflow, issues: WorkflowValidationIssue[]): void {
 	for (const [from, target] of Object.entries(w.edges)) {
 		if (typeof target === "string") continue;
-		if (!marksFrontmatter(target)) continue;
+		if (!marksReadsData(target)) continue;
 		const stage = w.stages[from];
 		if (stage && !stage.outputSchema) {
 			issues.push(
 				warning(
 					w.name,
 					from,
-					`predicate edge from "${from}" reads output.data but the stage has no outputSchema — routing may fire on un-validated data`,
+					`route edge from "${from}" reads output.data but the stage has no outputSchema — routing may fire on un-validated data`,
 				),
 			);
 		}
@@ -323,8 +324,8 @@ function enumerateTargets(target: EdgeTarget): string[] {
  * Emits the "EdgeFn without `.targets` metadata" error for an `EdgeTarget`
  * that's a hand-rolled `EdgeFn` lacking the marker. Pairs with
  * `enumerateTargets`: lint sites call both; reachability calls only the
- * enumerator. Users authoring predicates by hand MUST go through
- * `definePredicate(targets, fn)` so the `.targets` metadata is structurally
+ * enumerator. Users authoring routes by hand MUST go through
+ * `defineRoute(targets, fn)` so the `.targets` metadata is structurally
  * attached.
  */
 function checkEdgeFnTargets(
@@ -338,7 +339,7 @@ function checkEdgeFnTargets(
 		error(
 			ctx.workflow,
 			ctx.from,
-			`edges["${ctx.from}"] is an EdgeFn without \`.targets\` metadata — use definePredicate([...], fn) or threshold() so reachability can enumerate branches`,
+			`edges["${ctx.from}"] is an EdgeFn without \`.targets\` metadata — use defineRoute([...], fn) or gate() so reachability can enumerate branches`,
 		),
 	);
 }

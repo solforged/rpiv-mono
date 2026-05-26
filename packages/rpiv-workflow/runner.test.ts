@@ -5,9 +5,10 @@ import { createMockPi, createMockSessionChain, mockAssistantMessage } from "@jui
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EdgeTarget, FanoutFn, StageDef, StageKind, StageSchema, Workflow } from "./api.js";
-import { definePredicate, defineStatePredicate, defineWorkflow, threshold } from "./api.js";
+import { defineRoute, defineWorkflow, gate } from "./api.js";
 import { fs as fsHandle } from "./handle.js";
 import type { OutputSpec } from "./output.js";
+import { eq, gt } from "./predicates.js";
 import { runWorkflow } from "./runner/index.js";
 import { appendRoutingDecision, readRoutingDecisions } from "./state/index.js";
 import { hasAssistantMessage, lastAssistantStopReason } from "./transcript.js";
@@ -145,7 +146,7 @@ describe("runWorkflow", () => {
 	 *
 	 *   wf("tiny", ["research"])
 	 *   wf("rev", ["research", "code-review", "revise", "commit"], {}, {
-	 *     "code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+	 *     "code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 	 *   })
 	 */
 	const wf = (
@@ -1117,7 +1118,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1153,7 +1154,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1187,7 +1188,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1233,7 +1234,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1272,7 +1273,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1305,7 +1306,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1398,7 +1399,12 @@ describe("runWorkflow", () => {
 			// declared but unreachable — exercised to confirm the runner halts
 			// via the backward-jump guard, not via running into `c`. Decision-edge
 			// (vs deterministic literal) so the new semantic counts the retry.
-			const workflow = wf("cycle", ["a", "b", "c"], {}, { b: defineStatePredicate(["a", "c"], () => "a") });
+			const workflow = wf(
+				"cycle",
+				["a", "b", "c"],
+				{},
+				{ b: defineRoute(["a", "c"], () => "a", { readsData: false }) },
+			);
 
 			const result = await runWorkflow(chain.ctx, { workflow, input: "x" });
 
@@ -1443,7 +1449,12 @@ describe("runWorkflow", () => {
 				],
 			});
 
-			const workflow = wf("cycle", ["a", "b", "c"], {}, { b: defineStatePredicate(["a", "c"], () => "a") });
+			const workflow = wf(
+				"cycle",
+				["a", "b", "c"],
+				{},
+				{ b: defineRoute(["a", "c"], () => "a", { readsData: false }) },
+			);
 
 			const result = await runWorkflow(chain.ctx, { workflow, input: "x", maxBackwardJumps: 1 });
 
@@ -1471,7 +1482,7 @@ describe("runWorkflow", () => {
 				["research", "code-review", "revise", "commit"],
 				{},
 				{
-					"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+					"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				},
 			);
 
@@ -1497,7 +1508,12 @@ describe("runWorkflow", () => {
 				],
 			});
 
-			const workflow = wf("cycle", ["a", "b", "c"], {}, { b: defineStatePredicate(["a", "c"], () => "a") });
+			const workflow = wf(
+				"cycle",
+				["a", "b", "c"],
+				{},
+				{ b: defineRoute(["a", "c"], () => "a", { readsData: false }) },
+			);
 
 			const result = await runWorkflow(chain.ctx, { workflow, input: "x", maxBackwardJumps: 1 });
 
@@ -1523,7 +1539,12 @@ describe("runWorkflow", () => {
 				],
 			});
 
-			const workflow = wf("self-loop", ["a"], {}, { a: defineStatePredicate(["a", "stop"], () => "a") });
+			const workflow = wf(
+				"self-loop",
+				["a"],
+				{},
+				{ a: defineRoute(["a", "stop"], () => "a", { readsData: false }) },
+			);
 
 			const result = await runWorkflow(chain.ctx, { workflow, input: "x", maxBackwardJumps: 1 });
 
@@ -1544,7 +1565,12 @@ describe("runWorkflow", () => {
 				],
 			});
 
-			const workflow = wf("cycle", ["a", "b", "c"], {}, { b: defineStatePredicate(["a", "c"], () => "a") });
+			const workflow = wf(
+				"cycle",
+				["a", "b", "c"],
+				{},
+				{ b: defineRoute(["a", "c"], () => "a", { readsData: false }) },
+			);
 
 			await runWorkflow(chain.ctx, { workflow, input: "x", maxBackwardJumps: 0 });
 
@@ -1563,7 +1589,12 @@ describe("runWorkflow", () => {
 				],
 			});
 
-			const workflow = wf("cycle", ["a", "b", "c"], {}, { b: defineStatePredicate(["a", "c"], () => "a") });
+			const workflow = wf(
+				"cycle",
+				["a", "b", "c"],
+				{},
+				{ b: defineRoute(["a", "c"], () => "a", { readsData: false }) },
+			);
 
 			await runWorkflow(chain.ctx, { workflow, input: "x", maxBackwardJumps: 0 });
 
@@ -1613,7 +1644,12 @@ describe("runWorkflow", () => {
 				],
 			});
 
-			const workflow = wf("3loop", ["a", "b", "c"], {}, { c: defineStatePredicate(["a", "stop"], () => "a") });
+			const workflow = wf(
+				"3loop",
+				["a", "b", "c"],
+				{},
+				{ c: defineRoute(["a", "stop"], () => "a", { readsData: false }) },
+			);
 
 			const result = await runWorkflow(chain.ctx, { workflow, input: "x", maxBackwardJumps: 1 });
 
@@ -1659,14 +1695,14 @@ describe("runWorkflow", () => {
 				{},
 				{
 					// B → A twice, then B → C (escape to loop 2)
-					B: definePredicate(["A", "C"], () => {
+					B: defineRoute(["A", "C"], () => {
 						bDecisionCount++;
 						return bDecisionCount <= 1 ? "A" : "C";
 					}),
 					// D → C twice, then D → stop. With cap=1 and NO reset, this
 					// trips on the first D→C because B's prior retry already
 					// burned the budget.
-					D: definePredicate(["C", "stop"], () => {
+					D: defineRoute(["C", "stop"], () => {
 						dDecisionCount++;
 						return dDecisionCount <= 1 ? "C" : "stop";
 					}),
@@ -1860,7 +1896,7 @@ describe("totalStages denominator (countReachableNodes)", () => {
 		expect(stageDenominator(chain.statusUpdates)).toBe(3);
 	});
 
-	it("counts both branches when an edge is a threshold (with .targets)", async () => {
+	it("counts both branches when an edge is a gate (with .targets)", async () => {
 		const chain = createMockSessionChain({
 			cwd: tmpDir,
 			steps: [{ branch: [mockAssistantMessage("done")] }],
@@ -1874,8 +1910,8 @@ describe("totalStages denominator (countReachableNodes)", () => {
 					b: { kind: "side-effect", sessionPolicy: "fresh" },
 					c: { kind: "side-effect", sessionPolicy: "fresh" },
 				},
-				// Threshold attaches .targets = ["b", "c"]; BFS reaches both.
-				edges: { a: threshold("count", 0, "b", "c"), b: "stop", c: "stop" },
+				// gate attaches .targets = ["b", "c"]; BFS reaches both.
+				edges: { a: gate("count", { b: gt(0), c: eq(0) }), b: "stop", c: "stop" },
 			},
 			input: "x",
 		});
@@ -1910,7 +1946,7 @@ describe("totalStages denominator (countReachableNodes)", () => {
 			cwd: tmpDir,
 			steps: [{ branch: [mockAssistantMessage("done")] }],
 		});
-		// A bare EdgeFn skips definePredicate/threshold and carries no .targets
+		// A bare EdgeFn skips defineRoute/gate and carries no .targets
 		// metadata. validateWorkflow rejects this at load time; if a test bypasses
 		// validation and feeds it to runWorkflow, the runner surfaces the broken
 		// invariant loudly instead of silently miscounting the denominator.

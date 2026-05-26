@@ -14,13 +14,14 @@
  *
  * ─── Public surface, grouped by audience ────────────────────────────────
  *
- *   1. Authoring DSL — `./api.js`, `./typebox-adapter.js`
+ *   1. Authoring DSL — `./api.js`, `./predicates.js`, `./typebox-adapter.js`
  *      What a `workflows.config.ts` author imports to declare a workflow:
- *      `defineWorkflow`, `produces`, `acts`, `threshold`, `Workflow`,
- *      `StageDef`, `EdgeFn`, `EdgeTarget`, `EdgeContext`, `StageSchema`,
- *      `StageKind`, `SessionPolicy`, `OutputSpec`, `definePredicate`,
- *      `defineStatePredicate`, `READS_FRONTMATTER`, the runtime-mirror
- *      `*_VALUES` arrays, and `typeboxSchema` (the TypeBox adapter).
+ *      `defineWorkflow`, `produces`, `acts`, `defineRoute`, `gate`,
+ *      `Workflow`, `StageDef`, `EdgeFn`, `EdgeTarget`, `EdgeContext`,
+ *      `StageSchema`, `StageKind`, `SessionPolicy`, `OutputSpec`,
+ *      `READS_DATA`, the runtime-mirror `*_VALUES` arrays, the
+ *      `gt`/`gte`/`lt`/`lte`/`eq` predicate helpers, and `typeboxSchema`
+ *      (the TypeBox adapter).
  *
  *   2. Runner (programmatic embedders) — `./runner/index.js`, `./host.js`
  *      Drive a workflow from outside `/wf`: `runWorkflow`,
@@ -117,8 +118,8 @@ import type { WorkflowHost } from "./host.js";
 
 export {
 	acts,
-	definePredicate,
-	defineStatePredicate,
+	type DefineRouteOptions,
+	defineRoute,
 	defineWorkflow,
 	type EdgeContext,
 	type EdgeFn,
@@ -126,17 +127,18 @@ export {
 	type FanoutContext,
 	type FanoutFn,
 	type FanoutUnit,
+	gate,
+	marksReadsData,
 	ON_INVALID_VALUES,
 	type OnInvalid,
 	produces,
-	READS_FRONTMATTER,
+	READS_DATA,
 	SESSION_POLICIES,
 	type SessionPolicy,
 	STAGE_KINDS,
 	type StageDef,
 	type StageKind,
 	type StageSchema,
-	threshold,
 	type Workflow,
 } from "./api.js";
 export { registerBuiltIns } from "./built-ins.js";
@@ -190,6 +192,7 @@ export type {
 	SnapshotCtx,
 	SnapshotFn,
 } from "./output.js";
+export { eq, gt, gte, lt, lte, type Predicate } from "./predicates.js";
 export { type RunWorkflowOptions, type RunWorkflowResult, runWorkflow } from "./runner/index.js";
 export {
 	listArtifacts,

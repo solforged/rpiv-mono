@@ -85,7 +85,7 @@ const writeUserDropIn = (filename: string, body: string): void => {
 // that wires a noop stub outcome so produces stages pass validation
 // without each fixture restating the collector.
 const importApi = [
-	`import { defineWorkflow, produces as producesRaw, acts, threshold } from "${join(__dirname, "api.ts")}";`,
+	`import { defineWorkflow, produces as producesRaw, acts, gate } from "${join(__dirname, "api.ts")}";`,
 	`import { noopCollector } from "${join(__dirname, "outcomes", "index.ts")}";`,
 	`const produces = (o = {}) => producesRaw({ outcome: { collector: noopCollector }, ...o });`,
 ].join("\n");

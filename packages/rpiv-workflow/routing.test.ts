@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { type EdgeContext, threshold, type Workflow } from "./api.js";
+import { type EdgeContext, gate, type Workflow } from "./api.js";
+import { eq, gt } from "./predicates.js";
 import { edgeIsDecision, nextStage } from "./routing.js";
 import type { RunState } from "./types.js";
 
@@ -94,7 +95,7 @@ describe("nextStage", () => {
 			name: "pred",
 			start: "a",
 			stages: baseStages,
-			edges: { a: threshold("count", 0, "c", "b") },
+			edges: { a: gate("count", { c: gt(0), b: eq(0) }) },
 		};
 		expect(nextStage(workflow, "a", ctxOf({ count: 5 }))).toEqual({ kind: "next", stage: "c" });
 		expect(nextStage(workflow, "a", ctxOf({ count: 0 }))).toEqual({ kind: "next", stage: "b" });
@@ -162,7 +163,7 @@ describe("edgeIsDecision", () => {
 		stages: baseStages,
 		edges: {
 			a: "b",
-			b: threshold("count", 0, "c", "d"),
+			b: gate("count", { c: gt(0), d: eq(0) }),
 			c: "stop",
 		},
 	};

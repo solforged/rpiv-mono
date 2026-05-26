@@ -3,8 +3,8 @@
  * insertion order IS its linear stage order — `Object.keys(stages)` gives
  * the natural read order for previews and traversal alike.
  *
- * Predicate edges use `threshold(...)` from `@juicesharp/rpiv-workflow`,
- * which attaches `.targets` metadata so reachability checks and graph
+ * Route edges use `gate(...)` from `@juicesharp/rpiv-workflow`, which
+ * attaches `.targets` metadata so reachability checks and graph
  * introspectors can enumerate possible branches without probing.
  *
  * These workflows name skills bundled by rpiv-pi (research, design, plan,
@@ -18,11 +18,13 @@ import { isAbsolute, join } from "node:path";
 import {
 	acts,
 	defineWorkflow,
+	eq,
 	type FanoutFn,
+	gate,
 	gitCommitOutcome,
+	gt,
 	handleToString,
 	produces,
-	threshold,
 	typeboxSchema,
 	type Workflow,
 } from "@juicesharp/rpiv-workflow";
@@ -105,7 +107,7 @@ const midWorkflow = defineWorkflow({
 		blueprint: "implement",
 		implement: "validate",
 		validate: "code-review",
-		"code-review": threshold("blockers_count", 0, "revise", "commit"),
+		"code-review": gate("blockers_count", { revise: gt(0), commit: eq(0) }),
 		revise: "implement-after-revise",
 		"implement-after-revise": "commit",
 		commit: "stop",
@@ -142,7 +144,7 @@ const largeWorkflow = defineWorkflow({
 		plan: "implement",
 		implement: "validate",
 		validate: "code-review-large",
-		"code-review-large": threshold("blockers_count", 0, "design-after-review", "commit"),
+		"code-review-large": gate("blockers_count", { "design-after-review": gt(0), commit: eq(0) }),
 		"design-after-review": "plan-after-review",
 		"plan-after-review": "implement-after-review",
 		"implement-after-review": "commit",

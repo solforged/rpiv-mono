@@ -141,8 +141,8 @@ export interface OutputSpec<Snapshot = unknown, Kind extends string = string, Da
 
 // ---------------------------------------------------------------------------
 // Author helpers — `define*` shorthands match `defineWorkflow` /
-// `definePredicate` / `defineStatePredicate` in api.ts. Pure passthroughs:
-// they exist for type inference + uniform shape at the call site.
+// `defineRoute` in api.ts. Pure passthroughs: they exist for type
+// inference + uniform shape at the call site.
 // ---------------------------------------------------------------------------
 
 /** Identity passthrough; lets authors annotate snapshot-generic collectors without re-stating `<Snapshot>`. */

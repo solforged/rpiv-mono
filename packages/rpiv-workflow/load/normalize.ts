@@ -8,8 +8,8 @@
  *   2. `Workflow[]`                      — multi-entry, default required if > 1
  *   3. `{ workflows, default? }`         — full envelope, explicit default
  *
- * Missing-field policy for `threshold`-style predicates is documented at
- * `api.ts:threshold`; loader-side, missing fields surface as `NaN` after
+ * Missing-field policy for `gate(...)` routes is documented at
+ * `api.ts:gate`; loader-side, missing fields surface as `NaN` after
  * `Number(...)` coercion in the predicate body — not a loader concern.
  */
 

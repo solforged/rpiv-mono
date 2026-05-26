@@ -1,10 +1,9 @@
 /**
  * Public authoring surface for rpiv workflows. Canonical entry point — users
  * import everything they need (`defineWorkflow`, `produces`, `acts`,
- * `definePredicate`, `defineStatePredicate`, `threshold`, `STOP`,
- * `marksFrontmatter`, schema adapters, plus the type vocabulary `Workflow`
- * / `StageDef` / `EdgeFn` / `EdgeTarget` / `EdgeContext`) from
- * `@juicesharp/rpiv-workflow`.
+ * `defineRoute`, `gate`, `STOP`, `marksReadsData`, schema adapters, plus the
+ * type vocabulary `Workflow` / `StageDef` / `EdgeFn` / `EdgeTarget` /
+ * `EdgeContext`) from `@juicesharp/rpiv-workflow`.
  *
  * A `Workflow` is a typed graph: a named entry point, a stage table, and an
  * edge table that maps each stage to either another stage name, the sentinel
@@ -18,6 +17,7 @@
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { OutputSpec } from "./output.js";
+import type { Predicate } from "./predicates.js";
 import type { RunState } from "./types.js";
 
 export type { OutputSpec } from "./output.js";
@@ -133,8 +133,8 @@ export interface FanoutUnit {
 
 /**
  * Runtime context handed to an `EdgeFn`. The sole context shape for both
- * data-reading (`definePredicate`) and state-only
- * (`defineStatePredicate`) authoring paths.
+ * data-reading and state-only routes (the single `defineRoute` path covers
+ * both via `opts.readsData`).
  */
 export interface EdgeContext {
 	output: import("./output.js").Output | undefined;
@@ -142,16 +142,16 @@ export interface EdgeContext {
 }
 
 /**
- * Body-type alias for hand-rolled predicates. Internal — users wrap via
- * `definePredicate` / `defineStatePredicate`, which return an `EdgeFn`
- * (this alias plus a `.targets` field).
+ * Body-type alias for hand-rolled route picks. Internal — users wrap via
+ * `defineRoute`, which returns an `EdgeFn` (this alias plus a `.targets`
+ * field).
  */
 type EdgePredicate = (ctx: EdgeContext) => string;
 
 /**
  * A function that picks the next stage name given current state + output.
  * Optional `targets` field lets graph introspectors enumerate possible
- * returns — `threshold` and other built-in predicate builders populate it.
+ * returns — `gate` and other built-in route builders populate it.
  */
 export type EdgeFn = EdgePredicate & { targets?: readonly string[] };
 
@@ -265,55 +265,48 @@ export function acts(overrides: Partial<StageDef> = {}): StageDef {
 }
 
 // ===========================================================================
-// Predicate builders — common patterns
+// Route builders — common patterns
 // ===========================================================================
 
 /**
  * Marker attached to EdgeFns that read from `output.data`.
- * `validate-workflow.ts:checkPredicateSchemas` warns when a node feeds a marked
- * predicate but has no `outputSchema` — routing on un-validated data
+ * `validate-workflow.ts:checkPredicateSchemas` warns when a stage feeds a
+ * marked route but has no `outputSchema` — routing on un-validated data
  * is the I6-class defect from the bcc34bc review.
  *
- * Default is "marked": `definePredicate` auto-marks. Hand-roll
- * `defineStatePredicate` for the rare predicate that consults only `state`
- * or `output.meta` — that's the opt-out path. The previous direction
- * (opt-in marker, default unmarked) silently exempted every user-authored
- * predicate from the lint.
+ * Default is "marked": `defineRoute(targets, fn)` auto-marks. Opt out by
+ * passing `{ readsData: false }` for the rare route that consults only
+ * `state` or `output.meta`.
  *
  * Exported as a `Symbol.for` so it survives `import` boundaries cleanly.
  */
-export const READS_FRONTMATTER: unique symbol = Symbol.for("rpiv.workflow.readsFrontmatter");
+export const READS_DATA: unique symbol = Symbol.for("rpiv.workflow.readsData");
 
 /**
- * True iff `fn` was wrapped by `definePredicate` (which sets the
- * `READS_FRONTMATTER` marker). The validator uses this to decide whether an
- * `EdgeFn`'s source node must declare an `outputSchema` — data-reading
- * predicates need a validated output shape; state-only predicates don't.
+ * True iff `fn` was wrapped by `defineRoute(...)` with the data-reading
+ * marker attached (the default; opt out via `{ readsData: false }`). The
+ * validator uses this to decide whether an `EdgeFn`'s source stage must
+ * declare an `outputSchema` — data-reading routes need a validated output
+ * shape; state-only routes don't.
  *
  * Centralises the double-cast required to symbol-key into a function object
  * so consumers don't sprinkle `as unknown as Record<symbol, …>` at every
  * read site.
  */
-export function marksFrontmatter(fn: EdgeFn): boolean {
-	return Boolean((fn as unknown as Record<symbol, boolean>)[READS_FRONTMATTER]);
+export function marksReadsData(fn: EdgeFn): boolean {
+	return Boolean((fn as unknown as Record<symbol, boolean>)[READS_DATA]);
 }
 
-/**
- * Shared body for `definePredicate` + `defineStatePredicate`. Validates the
- * `targets` invariant, attaches `.targets` to the function, and (when
- * `marker` is true) sets the `READS_FRONTMATTER` symbol so the load-time
- * predicate-schema lint can distinguish data-reading predicates
- * from state-only ones. `factory` is used only to brand the throw message
- * so the offending call site is obvious in stack traces.
- */
-function wrapEdgeFn(factory: string, targets: readonly string[], fn: EdgePredicate, marker: boolean): EdgeFn {
-	if (targets.length === 0) {
-		throw new Error(`${factory}: targets must declare at least one possible return value`);
-	}
-	const wrapped = fn as EdgeFn;
-	wrapped.targets = [...targets];
-	if (marker) (wrapped as unknown as Record<symbol, boolean>)[READS_FRONTMATTER] = true;
-	return wrapped;
+/** Options for `defineRoute`. */
+export interface DefineRouteOptions {
+	/**
+	 * Whether the route reads `output.data` (the default). Set to `false` for
+	 * routes that consult only `state` or `output.meta` so the load-time
+	 * outputSchema lint doesn't warn the source stage lacks an
+	 * `outputSchema` (a state-derived route has no data-shape contract to
+	 * validate).
+	 */
+	readsData?: boolean;
 }
 
 /**
@@ -321,63 +314,56 @@ function wrapEdgeFn(factory: string, targets: readonly string[], fn: EdgePredica
  * attaching the set of possible returns. `validate-workflow.ts` requires every
  * EdgeFn to carry `.targets` so reachability and load-time edge-target
  * checks see every branch; this factory is the only blessed way to author
- * a multi-branch predicate.
+ * a multi-branch route.
  *
- * Auto-marks the returned EdgeFn with `READS_FRONTMATTER` so the
- * predicate-schema lint fires when the source node has no `outputSchema`.
- * If the predicate consults only `state` / `output.meta` and never reads
- * `output.data`, use `defineStatePredicate` instead.
+ * Auto-marks the returned EdgeFn with `READS_DATA` so the outputSchema lint
+ * fires when the source stage has no `outputSchema`. If the route consults
+ * only `state` / `output.meta` and never reads `output.data`, pass
+ * `{ readsData: false }` to suppress the lint.
  *
- * Throws if `targets` is empty — a predicate that can't return anything
+ * Throws if `targets` is empty — a route that can't return anything
  * declared is by definition a bug.
  */
-export function definePredicate(targets: readonly string[], fn: EdgePredicate): EdgeFn {
-	return wrapEdgeFn("definePredicate", targets, fn, true);
+export function defineRoute(targets: readonly string[], fn: EdgePredicate, opts?: DefineRouteOptions): EdgeFn {
+	if (targets.length === 0) {
+		throw new Error("defineRoute: targets must declare at least one possible return value");
+	}
+	const wrapped = fn as EdgeFn;
+	wrapped.targets = [...targets];
+	if (opts?.readsData !== false) (wrapped as unknown as Record<symbol, boolean>)[READS_DATA] = true;
+	return wrapped;
 }
 
 /**
- * Like `definePredicate` but for predicates that consult only `state` or
- * `output.meta` and never read `output.data`. Omits the
- * `READS_FRONTMATTER` marker so `checkPredicateSchemas` doesn't warn the
- * source node lacks an `outputSchema` (a state-derived predicate has no
- * data-shape contract to validate).
- */
-export function defineStatePredicate(targets: readonly string[], fn: EdgePredicate): EdgeFn {
-	return wrapEdgeFn("defineStatePredicate", targets, fn, false);
-}
-
-/**
- * Internal body for `threshold`. Reads `output.data[field]`, coerces via
- * `Number(...)`, and picks `ifAbove` / `ifBelow` on strict greater-than. The
- * caller-facing missing-field policy lives in `threshold`'s JSDoc.
- */
-const predicateThreshold =
-	(field: string, n: number, ifAbove: string, ifBelow: string): EdgePredicate =>
-	({ output }) => {
-		const value = Number((output?.data as Record<string, unknown>)?.[field]);
-		return value > n ? ifAbove : ifBelow;
-	};
-
-/**
- * Routes to `ifAbove` when `Number(output.data[field]) > n`; otherwise to
- * `ifBelow`. Built on `definePredicate` so the contract is enforced
- * structurally; the `READS_FRONTMATTER` marker is inherited from
- * `definePredicate`.
- *
- * Missing-field policy: `Number(undefined)` is `NaN`, and `NaN > anything` is
- * `false`. So a missing or non-numeric field always routes to `ifBelow` —
- * regardless of the threshold's sign. Negative thresholds therefore also
- * route missing fields to `ifBelow` (NaN compares false against any value).
- * This symmetry frees workflow authors from remembering per-factory coercion
- * rules; if a different missing-field default is needed, declare it
- * explicitly via `definePredicate`:
+ * Conditional routing keyed on a numeric field in `output.data`. Each
+ * branch's predicate is evaluated against `Number(output.data[field])` in
+ * declaration order; the first matching branch wins. If no predicate
+ * matches, the last declared branch is the fallback — same posture as the
+ * prior `threshold` builder, which routed missing/non-numeric fields to its
+ * `ifBelow` branch by virtue of `NaN > anything === false`.
  *
  * ```ts
- * definePredicate(["a","b"], ({ output }) =>
- *   Number((output?.data as Record<string, unknown>)?.foo ?? -1) > 0 ? "a" : "b"
- * )
+ * gate("blockers_count", { revise: gt(0), commit: eq(0) })
+ * // value > 0  → "revise"
+ * // value = 0  → "commit"
+ * // value < 0  → "commit" (no match, falls to last)
+ * // missing/NaN → "commit" (no match, falls to last)
  * ```
+ *
+ * Built on `defineRoute` so the `.targets` metadata is attached structurally
+ * and the `READS_DATA` marker auto-applies (routing reads `output.data`).
  */
-export function threshold(field: string, n: number, ifAbove: string, ifBelow: string): EdgeFn {
-	return definePredicate([ifAbove, ifBelow], predicateThreshold(field, n, ifAbove, ifBelow));
+export function gate(field: string, branches: Record<string, Predicate>): EdgeFn {
+	const targets = Object.keys(branches);
+	if (targets.length === 0) {
+		throw new Error("gate: branches must declare at least one possible return value");
+	}
+	const fallback = targets[targets.length - 1]!;
+	return defineRoute(targets, ({ output }) => {
+		const value = Number((output?.data as Record<string, unknown> | undefined)?.[field]);
+		for (const target of targets) {
+			if (branches[target]!(value)) return target;
+		}
+		return fallback;
+	});
 }

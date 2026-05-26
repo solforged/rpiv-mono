@@ -4,9 +4,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { acts, defineWorkflow, produces, type StageDef, threshold, type Workflow } from "./api.js";
+import { acts, defineWorkflow, gate, produces, type StageDef, type Workflow } from "./api.js";
 import type { LoadedWorkflows } from "./load/index.js";
 import { gitCommitOutcome } from "./outcomes/index.js";
+import { eq, gt } from "./predicates.js";
 import { formatWorkflowDetails, formatWorkflowList } from "./preview.js";
 
 // ---------------------------------------------------------------------------
@@ -164,7 +165,7 @@ describe("formatWorkflowDetails", () => {
 				commit: acts(),
 			},
 			edges: {
-				"code-review": threshold("severeIssueCount", 0, "revise", "commit"),
+				"code-review": gate("severeIssueCount", { revise: gt(0), commit: eq(0) }),
 				revise: "commit",
 				commit: "stop",
 			},
