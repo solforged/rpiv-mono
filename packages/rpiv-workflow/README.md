@@ -1,6 +1,6 @@
 # @juicesharp/rpiv-workflow
 
-Pi extension. Chain Pi skills into typed multi-stage workflows with audited JSONL state, predicate routing, and per-stage manifest validation.
+Pi extension. Chain Pi skills into typed multi-stage workflows with audited JSONL state, predicate routing, and per-stage output validation.
 
 **Skill-agnostic.** The runner sends `/skill:<name>` via Pi's native dispatch — it doesn't know or care who shipped the skill. Install on its own and write workflows over your own `~/.pi/agent/skills/`, or pair with [`@juicesharp/rpiv-pi`](../rpiv-pi) to use rpiv-pi's bundled `mid`, `large`, `small` workflows over rpiv-pi's bundled skills.
 
@@ -82,7 +82,7 @@ Conditional routing uses `threshold(field, n, ifAbove, ifBelow)`:
 edges: { "code-review": threshold("blockers_count", 0, "revise", "commit") }
 ```
 
-Hand-rolled predicates use `definePredicate(targets, fn)` (reads `manifest.data`, requires the source stage to declare an `outputSchema`) or `defineStatePredicate(targets, fn)` (consults only `state` / `manifest.meta`).
+Hand-rolled predicates use `definePredicate(targets, fn)` (reads `output.data`, requires the source stage to declare an `outputSchema`) or `defineStatePredicate(targets, fn)` (consults only `state` / `output.meta`).
 
 ## Programmatic registration
 
@@ -149,7 +149,7 @@ interface OutputSpec<Snapshot, Kind, Data> {
 }
 ```
 
-`collector.collect(ctx)` returns the artifacts the stage emitted. `parser.parse(ctx)` (optional) turns them into the typed `manifest.data` downstream stages narrow on. With no parser, `manifest.data` is the artifact list itself (`kind = "artifacts"`).
+`collector.collect(ctx)` returns the artifacts the stage emitted. `parser.parse(ctx)` (optional) turns them into the typed `output.data` downstream stages narrow on. With no parser, `output.data` is the artifact list itself (`kind = "artifacts"`).
 
 There is no framework default for `produces` — load-time validation rejects a stage without an outcome. The `.rpiv/artifacts/<bucket>/<file>.md` layout is an rpiv convention, not a framework truth; pair with [`@juicesharp/rpiv-pi`](../rpiv-pi) for `rpivArtifactMdOutcome`, or wire your own.
 
@@ -262,7 +262,7 @@ export default defineWorkflow({
 **Default to sync.** Pure shape contracts (`Type.Object({ … })`, `z.object({ … })`) resolve in one microtask, give the agent precise retry diagnostics, and have no failure mode beyond "this isn't the shape you said." For 95% of stages this is the right answer.
 
 **Reach for async when correctness needs I/O.** Examples that don't fit the sync model:
-- "the path in the manifest must actually exist on disk" — `fs.access` is async.
+- "the path in the output must actually exist on disk" — `fs.access` is async.
 - "the spec the agent emitted must validate against a live endpoint" — `fetch` is async.
 - you're already on an async-by-default schema lib (ArkType's deeply-async paths).
 

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EdgeTarget, FanoutFn, StageDef, StageKind, StageSchema, Workflow } from "./api.js";
 import { definePredicate, defineStatePredicate, defineWorkflow, threshold } from "./api.js";
 import { fs as fsHandle } from "./handle.js";
-import type { OutputSpec } from "./manifest.js";
+import type { OutputSpec } from "./output.js";
 import { runWorkflow } from "./runner/index.js";
 import { appendRoutingDecision, readRoutingDecisions } from "./state/index.js";
 import { hasAssistantMessage, lastAssistantStopReason } from "./transcript.js";
@@ -250,9 +250,9 @@ describe("runWorkflow", () => {
 			skill: "research",
 			status: "completed",
 		});
-		expect(
-			(stages[0]?.manifest as { artifacts: Array<{ handle: { path: string } }> }).artifacts[0]?.handle.path,
-		).toBe(".rpiv/artifacts/research/r.md");
+		expect((stages[0]?.output as { artifacts: Array<{ handle: { path: string } }> }).artifacts[0]?.handle.path).toBe(
+			".rpiv/artifacts/research/r.md",
+		);
 	});
 
 	it("chains the second step on freshCtx — outer.newSession is called exactly once", async () => {
@@ -286,9 +286,9 @@ describe("runWorkflow", () => {
 
 		const { stages } = readState(tmpDir);
 		expect(stages.map((s) => s.status)).toEqual(["completed", "completed"]);
-		expect(
-			(stages[1]?.manifest as { artifacts: Array<{ handle: { path: string } }> }).artifacts[0]?.handle.path,
-		).toBe(".rpiv/artifacts/designs/d.md");
+		expect((stages[1]?.output as { artifacts: Array<{ handle: { path: string } }> }).artifacts[0]?.handle.path).toBe(
+			".rpiv/artifacts/designs/d.md",
+		);
 
 		// The persistent status line updates exactly once per stage (in order),
 		// then clears on workflow completion. Pi's `notify` channel gets
@@ -325,7 +325,7 @@ describe("runWorkflow", () => {
 		const { stages } = readState(tmpDir);
 		expect(stages).toHaveLength(1);
 		expect(stages[0]).toMatchObject({ skill: "research", status: "failed" });
-		expect(stages[0]?.manifest).toBeUndefined();
+		expect(stages[0]?.output).toBeUndefined();
 	});
 
 	it("records skipped + emits cancelled notification when outer newSession resolves cancelled", async () => {
@@ -536,7 +536,7 @@ describe("runWorkflow", () => {
 		const { stages } = readState(tmpDir);
 		expect(stages).toHaveLength(1);
 		expect(stages[0]).toMatchObject({ skill: "research", status: "failed" });
-		expect(stages[0]?.manifest).toBeUndefined();
+		expect(stages[0]?.output).toBeUndefined();
 
 		// User-visible error notification surfaces the stage-failed verdict.
 		// The outcome's fatal message flows through recordTerminalFailure's
@@ -950,10 +950,10 @@ describe("runWorkflow", () => {
 	});
 
 	describe("input validation (Phase 5)", () => {
-		it("halts chain when prior manifest fails consumer's inputSchema", async () => {
+		it("halts chain when prior output fails consumer's inputSchema", async () => {
 			writeArtifact(tmpDir, ".rpiv/artifacts/research/r.md");
 			// Stage 1 (research) produces an artifact. Stage 2 (design) has an
-			// inputSchema that rejects the manifest data from stage 1.
+			// inputSchema that rejects the output data from stage 1.
 			const chain = createMockSessionChain({
 				cwd: tmpDir,
 				steps: [
@@ -1022,7 +1022,7 @@ describe("runWorkflow", () => {
 			expect(result.stagesCompleted).toBe(2);
 		});
 
-		it("passes when manifest data satisfies the consumer's inputSchema", async () => {
+		it("passes when output data satisfies the consumer's inputSchema", async () => {
 			writeArtifact(tmpDir, ".rpiv/artifacts/research/r.md", "---\nrequiredField: hello\n---\n\nContent");
 			writeArtifact(tmpDir, ".rpiv/artifacts/designs/d.md");
 			const chain = createMockSessionChain({

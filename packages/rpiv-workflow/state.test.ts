@@ -128,7 +128,7 @@ describe("writeHeader + readAllStages + readLastStage", () => {
 
 		const last = readLastStage(tmpDir, runId);
 		expect(last).toEqual(failed);
-		expect(last?.manifest).toBeUndefined();
+		expect(last?.output).toBeUndefined();
 	});
 });
 
@@ -296,7 +296,7 @@ describe("listRuns", () => {
 });
 
 describe("listArtifacts", () => {
-	const mkManifest = (artifacts: Array<{ kind: "fs"; path: string }>) => ({
+	const mkOutput = (artifacts: Array<{ kind: "fs"; path: string }>) => ({
 		kind: "artifact-md",
 		artifacts: artifacts.map((handle) => ({ handle })),
 		data: {},
@@ -311,7 +311,7 @@ describe("listArtifacts", () => {
 			skill: "research",
 			status: "completed",
 			ts: "2026",
-			manifest: mkManifest([{ kind: "fs", path: ".rpiv/artifacts/research/r.md" }]),
+			output: mkOutput([{ kind: "fs", path: ".rpiv/artifacts/research/r.md" }]),
 		});
 		// Stage without artifacts — should NOT appear in the list.
 		appendStage(tmpDir, runId, { stageNumber: 2, skill: "commit", status: "completed", ts: "2026" });
@@ -320,7 +320,7 @@ describe("listArtifacts", () => {
 			skill: "design",
 			status: "completed",
 			ts: "2026",
-			manifest: mkManifest([{ kind: "fs", path: ".rpiv/artifacts/design/d.md" }]),
+			output: mkOutput([{ kind: "fs", path: ".rpiv/artifacts/design/d.md" }]),
 		});
 
 		expect(listArtifacts(tmpDir, runId)).toEqual([

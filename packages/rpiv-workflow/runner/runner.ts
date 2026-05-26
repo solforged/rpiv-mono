@@ -81,7 +81,7 @@ export interface RunWorkflowResult {
 	 * Primary artifact at run termination, serialised to its handle's
 	 * canonical string form (fs → path, url → href, opaque → id). Undefined
 	 * if no produces stage produced one. Callers that need the full
-	 * structured handle read `manifest.artifacts[0]` off the run's last
+	 * structured handle read `output.artifacts[0]` off the run's last
 	 * recorded stage (via `readLastStage`).
 	 */
 	lastArtifact?: string;
@@ -142,7 +142,7 @@ export async function runWorkflow(ctx: WorkflowCommandHost, options: RunWorkflow
 	const state: RunState = {
 		originalInput: options.input,
 		primaryArtifact: undefined,
-		manifest: undefined,
+		output: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,
 		telemetry: {

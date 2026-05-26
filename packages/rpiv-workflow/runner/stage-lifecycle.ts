@@ -34,8 +34,8 @@ import {
 	MAX_VALIDATION_RETRY_TIMEOUT_MS,
 	MIN_VALIDATION_RETRY_TIMEOUT_MS,
 	type ValidationResult,
-	validateManifestData,
-} from "../validate-manifest.js";
+	validateOutputData,
+} from "../validate-output.js";
 import { advanceChain } from "./chain-advance.js";
 
 export interface ResolvedStage {
@@ -110,7 +110,7 @@ function buildPrompt(skill: string, inputForStage: string): string {
  *      c. ensureSkillRegistered  — halt: skill not registered in Pi.
  *   3. prompt + status + branchOffset prep.
  *   4. POST_PROMPT_CHECKS        — preflights gated on prompt-prep state.
- *      a. ensureInputValid       — halt: upstream manifest fails inputSchema.
+ *      a. ensureInputValid       — halt: upstream output fails inputSchema.
  *   5. captureStageSnapshot      — outcome.collector.snapshot hook (must run
  *                                  before the Pi session so post-stage diffs work).
  *
@@ -259,14 +259,14 @@ function computeBranchOffset(curCtx: RunnerCtx, def: StageDef): number | undefin
 }
 
 async function ensureInputValid(stage: ResolvedStage, run: RunContext): Promise<void> {
-	if (!stage.def.inputSchema || run.state.manifest?.data === undefined) return;
+	if (!stage.def.inputSchema || run.state.output?.data === undefined) return;
 	const timeoutMs = clampValidateTimeoutMs(stage.def.validateTimeoutMs);
-	const prevSkill = run.state.manifest.meta.skill || "unknown";
+	const prevSkill = run.state.output.meta.skill || "unknown";
 
 	let result: ValidationResult;
 	try {
 		result = await withTimeout(
-			Promise.resolve(validateManifestData(stage.def.inputSchema, run.state.manifest.data)),
+			Promise.resolve(validateOutputData(stage.def.inputSchema, run.state.output.data)),
 			timeoutMs,
 			ERR_SCHEMA_TIMEOUT("inputSchema", timeoutMs),
 		);

@@ -10,14 +10,14 @@ import { type EdgeContext, threshold, type Workflow } from "./api.js";
 import { edgeIsDecision, nextStage } from "./routing.js";
 import type { RunState } from "./types.js";
 
-const makeState = (manifestData?: Record<string, unknown>): RunState => ({
+const makeState = (outputData?: Record<string, unknown>): RunState => ({
 	originalInput: "",
 	primaryArtifact: undefined,
-	manifest: manifestData
+	output: outputData
 		? {
 				kind: "artifact-md",
 				artifacts: [],
-				data: manifestData,
+				data: outputData,
 				meta: { skill: "source", stageNumber: 1, ts: "", runId: "" },
 			}
 		: undefined,
@@ -33,9 +33,9 @@ const makeState = (manifestData?: Record<string, unknown>): RunState => ({
 	},
 });
 
-const ctxOf = (manifestData?: Record<string, unknown>): EdgeContext => {
-	const state = makeState(manifestData);
-	return { manifest: state.manifest, state };
+const ctxOf = (outputData?: Record<string, unknown>): EdgeContext => {
+	const state = makeState(outputData);
+	return { output: state.output, state };
 };
 
 const stage = (name: string) => ({

@@ -24,7 +24,7 @@ import { appendStage, listArtifacts, type WorkflowStage } from "./state/index.js
 import type { StopSignal } from "./transcript.js";
 import type { FanoutSession, RunnerCtx, RunState, SessionContext } from "./types.js";
 
-/** Single source of ISO-8601 timestamps for audit rows + manifest meta. */
+/** Single source of ISO-8601 timestamps for audit rows + output meta. */
 export const nowIso = (): string => new Date().toISOString();
 
 /**
@@ -50,8 +50,8 @@ export const fanoutRowLabel = (s: FanoutSession): string => `${s.skill} (${s.lab
  * cause the next stage to reuse the lost row's number. Higher-level counters
  * (e.g. `stagesCompleted`) gate on the returned value being defined.
  *
- * `wrapManifest`'s `state.lastAllocatedStageNumber + 1` peek aligns with this allocation
- * because the manifest is built BEFORE recordStage is called.
+ * `wrapOutput`'s `state.lastAllocatedStageNumber + 1` peek aligns with this allocation
+ * because the output is built BEFORE recordStage is called.
  */
 export function recordStage(
 	cwd: string,

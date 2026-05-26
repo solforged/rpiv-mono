@@ -99,13 +99,13 @@ export function readRoutingDecisions(cwd: string, runId: string): RoutingDecisio
  * `notifyPartialArtifacts` for the failure recap and by past-runs UIs
  * (the `listRuns` API) for run summaries.
  *
- * Reads from `manifest.artifacts` (single source); rows without a
- * manifest, or with an empty artifacts list, contribute nothing.
+ * Reads from `output.artifacts` (single source); rows without an
+ * output, or with an empty artifacts list, contribute nothing.
  */
 export function listArtifacts(cwd: string, runId: string): Array<{ skill: string; artifact: Artifact }> {
 	const out: Array<{ skill: string; artifact: Artifact }> = [];
 	for (const s of readAllStages(cwd, runId)) {
-		const artifacts = s.manifest?.artifacts;
+		const artifacts = s.output?.artifacts;
 		if (!artifacts) continue;
 		for (const artifact of artifacts) out.push({ skill: s.skill, artifact });
 	}

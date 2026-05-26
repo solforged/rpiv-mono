@@ -11,11 +11,11 @@
  *
  * `OutputSpec` is the wired-up pair — `{ collector, parser? }` — that
  * stages declare via `StageDef.outcome`. When `parser` is omitted the
- * manifest data IS the artifact list (kind = `"artifacts"`).
+ * output data IS the artifact list (kind = `"artifacts"`).
  *
- * Companion to `manifest.ts` (the envelope `Manifest<K, D>` that flows
- * to downstream stages, predicates, and the JSONL audit log). The split:
- * output-spec authors implement the producer side here; manifest
+ * Companion to `output.ts` (the envelope `Output<K, D>` that flows to
+ * downstream stages, predicates, and the JSONL audit log). The split:
+ * output-spec authors implement the producer side here; output
  * consumers read the envelope shape there.
  */
 
@@ -102,7 +102,7 @@ export interface ParseCtx<Snapshot = unknown> extends CollectCtx<Snapshot> {
 
 /**
  * Two-way return from `parse`. `ok` produces the typed data channel
- * downstream stages see on `manifest.data`; `fatal` halts the stage
+ * downstream stages see on `output.data`; `fatal` halts the stage
  * with the carried message — same posture as `CollectResult`.
  */
 export type ParseResult<Kind extends string = string, Data = unknown> =
@@ -110,7 +110,7 @@ export type ParseResult<Kind extends string = string, Data = unknown> =
 	| { kind: "fatal"; message: string };
 
 /**
- * Optional companion to a collector. When omitted, the manifest's
+ * Optional companion to a collector. When omitted, the output's
  * `data` is the artifact list itself and `kind` is the literal
  * `"artifacts"` — a stage that only needs to enumerate files doesn't
  * have to write a parser.
@@ -127,12 +127,12 @@ export interface ArtifactParser<Snapshot = unknown, Kind extends string = string
 
 /**
  * A stage's collector+parser bundle. `parser` is optional; when omitted
- * the manifest emits `kind: "artifacts"` with `data = artifacts`.
+ * the output emits `kind: "artifacts"` with `data = artifacts`.
  *
  * Generic over `<Snapshot, Kind, Data>` so specialised output specs
  * (`OutputSpec<GitHeadSnapshot, "git-commit", GitCommitData>`) flow types
  * end-to-end from snapshot through collect into the downstream
- * `manifest.data`.
+ * `output.data`.
  */
 export interface OutputSpec<Snapshot = unknown, Kind extends string = string, Data = unknown> {
 	collector: ArtifactCollector<Snapshot>;

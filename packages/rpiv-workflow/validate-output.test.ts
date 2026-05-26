@@ -4,7 +4,7 @@
  * `sendAndAwaitIdle`. `withTimeout` is a generic Promise.race helper and now
  * lives in `internal-utils.ts`; the timeout constants
  * (`DEFAULT/MIN/MAX_VALIDATION_RETRY_TIMEOUT_MS`) stay in
- * `validate-manifest.ts` since they're the validation-domain knobs that
+ * `validate-output.ts` since they're the validation-domain knobs that
  * drive the helper.
  */
 
@@ -14,7 +14,7 @@ import {
 	DEFAULT_VALIDATION_RETRY_TIMEOUT_MS,
 	MAX_VALIDATION_RETRY_TIMEOUT_MS,
 	MIN_VALIDATION_RETRY_TIMEOUT_MS,
-} from "./validate-manifest.js";
+} from "./validate-output.js";
 
 describe("withTimeout", () => {
 	it("resolves with the inner promise's value when it settles before the timer", async () => {

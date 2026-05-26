@@ -40,9 +40,9 @@
  *      `registerBuiltIns`. (`getBuiltIns` is test-only and lives on
  *      `@juicesharp/rpiv-workflow/internal`.)
  *
- *   5. Manifest envelope + bundled outcomes — `./manifest.js`,
+ *   5. Output envelope + bundled outcomes — `./output.js`,
  *      `./outcomes/index.js`, `./handle.js`
- *      Inter-stage data channel (`Manifest<K, D>`, `ManifestMeta`,
+ *      Inter-stage data channel (`Output<K, D>`, `OutputMeta`,
  *      `Artifact`, `ArtifactHandle` + constructors `fs`/`url`/
  *      `opaque`/`inline`/`handleToString`) + bundled outcomes
  *      (`sideEffectOutcome`, `gitCommitOutcome`, `GitCommitData`,
@@ -61,16 +61,16 @@
  *      (`rpivArtifactMdOutcome` / `frontmatterParser`) — those are
  *      rpiv conventions, not framework defaults.
  *
- *   6. Custom-outcome authoring surface — `./manifest.js`
+ *   6. Custom-outcome authoring surface — `./output.js`
  *      `OutputSpec<Snapshot, Kind, Data>` (collector + optional parser),
  *      `ArtifactCollector`, `ArtifactParser`, `CollectCtx`,
  *      `CollectResult`, `ParseCtx`, `ParseResult`, `SnapshotCtx`,
  *      `SnapshotFn`. Sugar: `defineCollector` / `defineParser`.
  *
  *   7. Validation surfaces — `./validate-workflow.js`,
- *      `./validate-manifest.js`
+ *      `./validate-output.js`
  *      `validateWorkflow`, `WorkflowValidationIssue`,
- *      `validateManifestData`, `SchemaValidationFailure`.
+ *      `validateOutputData`, `SchemaValidationFailure`.
  *
  *   8. Persistence (low-level — JSONL inspect) — `./state/index.js`
  *      Read past runs at `<cwd>/.rpiv/workflows/<run-id>.jsonl`:
@@ -152,19 +152,6 @@ export {
 export type { WorkflowCommandHost, WorkflowHost, WorkflowSessionHost } from "./host.js";
 export type { ConfigLayer, Issue, LoadedWorkflows, LoadIssue, OverlayPaths } from "./load/index.js";
 export { loadWorkflows, projectOverlayPaths, userOverlayPaths } from "./load/index.js";
-export type {
-	ArtifactCollector,
-	ArtifactParser,
-	CollectCtx,
-	CollectResult,
-	Manifest,
-	ManifestMeta,
-	OutputSpec,
-	ParseCtx,
-	ParseResult,
-	SnapshotCtx,
-	SnapshotFn,
-} from "./manifest.js";
 export { defineCollector, defineParser } from "./outcome-types.js";
 export {
 	type DirectoryPathCollectorOpts,
@@ -190,6 +177,19 @@ export {
 	type WorkspaceDiffSnapshot,
 	workspaceDiffCollector,
 } from "./outcomes/index.js";
+export type {
+	ArtifactCollector,
+	ArtifactParser,
+	CollectCtx,
+	CollectResult,
+	Output,
+	OutputMeta,
+	OutputSpec,
+	ParseCtx,
+	ParseResult,
+	SnapshotCtx,
+	SnapshotFn,
+} from "./output.js";
 export { type RunWorkflowOptions, type RunWorkflowResult, runWorkflow } from "./runner/index.js";
 export {
 	listArtifacts,
@@ -204,7 +204,7 @@ export {
 } from "./state/index.js";
 export { typeboxSchema } from "./typebox-adapter.js";
 export type { RunState } from "./types.js";
-export { type SchemaValidationFailure, validateManifestData } from "./validate-manifest.js";
+export { type SchemaValidationFailure, validateOutputData } from "./validate-output.js";
 export { validateWorkflow, type WorkflowValidationIssue } from "./validate-workflow.js";
 
 export default function (host: WorkflowHost): void {

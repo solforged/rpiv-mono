@@ -293,7 +293,7 @@ describe("validateWorkflow — predicate-edge schema check", () => {
 
 	it("does NOT warn when the predicate is built via defineStatePredicate (no frontmatter read)", () => {
 		// defineStatePredicate skips the READS_FRONTMATTER marker — the schema
-		// warning is exclusively for predicates that consult `manifest.data[field]`.
+		// warning is exclusively for predicates that consult `output.data[field]`.
 		// A state-derived predicate is exempt.
 		const w: Workflow = {
 			name: "state-derived",
@@ -311,17 +311,17 @@ describe("validateWorkflow — predicate-edge schema check", () => {
 		expect(issues.filter((i) => i.severity === "warning" && /outputSchema/.test(i.message))).toEqual([]);
 	});
 
-	it("DOES warn when a hand-rolled definePredicate reads manifest.data with no upstream outputSchema", () => {
+	it("DOES warn when a hand-rolled definePredicate reads output.data with no upstream outputSchema", () => {
 		// definePredicate now auto-marks READS_FRONTMATTER, so any hand-rolled
-		// predicate that reads manifest.data on a stage without outputSchema
+		// predicate that reads output.data on a stage without outputSchema
 		// trips the lint — closes the I3 gap where the marker was opt-in.
 		const w: Workflow = {
 			name: "frontmatter-read",
 			start: "code-review",
 			stages: { "code-review": produces(), a: produces(), b: produces() },
 			edges: {
-				"code-review": definePredicate(["a", "b"], ({ manifest }) =>
-					(manifest?.data as Record<string, unknown> | undefined)?.status === "ok" ? "a" : "b",
+				"code-review": definePredicate(["a", "b"], ({ output }) =>
+					(output?.data as Record<string, unknown> | undefined)?.status === "ok" ? "a" : "b",
 				),
 				a: "stop",
 				b: "stop",

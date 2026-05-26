@@ -37,7 +37,7 @@ export async function advanceChain(
 	run.visited.add(currentName);
 
 	const wasDecision = edgeIsDecision(run.workflow, currentName);
-	const result = nextStage(run.workflow, currentName, { manifest: run.state.manifest, state: run.state });
+	const result = nextStage(run.workflow, currentName, { output: run.state.output, state: run.state });
 
 	if (result.kind === "err") {
 		haltOnRoutingError(curCtx, run, currentName, result.reason);

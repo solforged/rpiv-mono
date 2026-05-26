@@ -27,6 +27,23 @@
   shape. Audit files are debug artifacts (per `state.ts`); no migration
   is provided. (L2-08 / T5-vocabulary-drift)
 
+### Breaking — `Manifest` → `Output` envelope rename
+- The inter-stage data channel `Manifest<K, D>` is now `Output<K, D>`;
+  `ManifestMeta` is `OutputMeta`; the built-in aliases follow
+  (`ArtifactsManifest` → `ArtifactsOutput`, `SideEffectManifest` →
+  `SideEffectOutput`, `GitCommitManifest` → `GitCommitOutput`).
+  `finalizeManifest` is `finalizeOutput`. The validation entrypoint
+  `validateManifestData` is `validateOutputData` (now in
+  `validate-output.ts`).
+- `EdgeContext.manifest` is now `EdgeContext.output`; predicate bodies
+  that destructured `{ manifest }` flip to `{ output }`, and
+  `output?.data` / `output?.meta` replace the matching field reads.
+- `RunState.manifest` is now `RunState.output`.
+- **On-disk JSONL** `WorkflowStage` rows carry the field as `output`
+  (was `manifest`). Audit files written by prior versions no longer
+  satisfy the row shape — same debug-artifact policy as the header
+  rename above.
+
 ### Added
 - Initial release. Extracted from `@juicesharp/rpiv-pi` as a standalone Pi
   extension. The package is **skill-agnostic** — install it on its own

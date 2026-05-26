@@ -15,7 +15,7 @@
  * else lives in a focused module.
  */
 
-import type { Manifest } from "../manifest.js";
+import type { Output } from "../output.js";
 
 // ---------------------------------------------------------------------------
 // Row shapes
@@ -29,15 +29,15 @@ export type StageStatus = "completed" | "failed" | "skipped" | "aborted";
  * current shape are silently skipped.
  *
  * The row no longer carries a top-level `artifact` field — discovery
- * moved into the resolver, and the canonical artifact list lives on
- * `manifest.artifacts`. Readers project from there via `listArtifacts`.
+ * moved into the collector, and the canonical artifact list lives on
+ * `output.artifacts`. Readers project from there via `listArtifacts`.
  */
 export interface WorkflowStage {
 	stageNumber: number;
 	skill: string;
 	status: StageStatus;
 	ts: string;
-	manifest?: Manifest;
+	output?: Output;
 }
 
 /** First line of the JSONL file. */

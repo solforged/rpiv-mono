@@ -1,11 +1,11 @@
 /**
- * Manifest production + validation retry loop. Sits between the
+ * Output production + validation retry loop. Sits between the
  * post-session classifier (which decides "stage finished cleanly?") and
  * the persistence helpers ("record this stage").
  *
- * Public entry: `produceAndValidateManifest`. Returns a tagged outcome
- * — `ok` with the manifest, `fatal` (halt with a wording the
- * resolver/reader supplied), or `validation-exhausted` (halt after the
+ * Public entry: `produceAndValidateOutput`. Returns a tagged outcome
+ * — `ok` with the output, `fatal` (halt with a wording the
+ * collector/parser supplied), or `validation-exhausted` (halt after the
  * retry budget tripped without a passing schema).
  *
  * The two-step contract:
@@ -19,10 +19,10 @@ import type { StageDef, StageSchema } from "../api.js";
 import { nowIso } from "../audit.js";
 import type { Artifact } from "../handle.js";
 import { assertNever, withTimeout } from "../internal-utils.js";
-import { finalizeManifest, type Manifest } from "../manifest.js";
 import { ERR_SCHEMA_TIMEOUT, MSG_VALIDATION_RETRY, MSG_VALIDATION_RETRY_PROMPT } from "../messages.js";
 import type { CollectCtx, OutputSpec } from "../outcome-types.js";
 import { sideEffectOutcome } from "../outcomes/index.js";
+import { finalizeOutput, type Output } from "../output.js";
 import { type BranchEntry, readBranch } from "../transcript.js";
 import type { RunnerCtx, StageSession } from "../types.js";
 import {
@@ -34,34 +34,34 @@ import {
 	MIN_VALIDATION_RETRY_TIMEOUT_MS,
 	type SchemaValidationFailure,
 	type ValidationResult,
-	validateManifestData,
-} from "../validate-manifest.js";
+	validateOutputData,
+} from "../validate-output.js";
 import { handlerFor } from "./spawn.js";
 
-export type ManifestProduction =
-	| { kind: "ok"; manifest: Manifest }
+export type OutputProduction =
+	| { kind: "ok"; output: Output }
 	| { kind: "fatal"; message: string }
 	| { kind: "validation-exhausted"; failureSummary: string };
 
 /** Retry loop re-produces against the latest branch after each fix request. */
-export async function produceAndValidateManifest(
+export async function produceAndValidateOutput(
 	ctx: RunnerCtx,
 	s: StageSession,
 	branch: BranchEntry[],
 	branchOffset: number | undefined,
-): Promise<ManifestProduction> {
+): Promise<OutputProduction> {
 	const outcome = resolveOutcome(s.stage, s.skill);
 	const collectCtx = buildCollectCtx(s, branch, branchOffset);
-	const finalize = (parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }) => wrapManifest(s, parts);
+	const finalize = (parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }) => wrapOutput(s, parts);
 
 	const first = await runOutcome(outcome, collectCtx, finalize);
 	if (first.kind === "fatal") return first;
-	const initialManifest = enforceCompletionContract(s.stage, s.skill, first.manifest);
-	if (initialManifest.kind === "fatal") return initialManifest;
+	const initialOutput = enforceCompletionContract(s.stage, s.skill, first.output);
+	if (initialOutput.kind === "fatal") return initialOutput;
 
-	if (!shouldValidateOutput(s.stage, initialManifest.manifest)) return initialManifest;
+	if (!shouldValidateOutput(s.stage, initialOutput.output)) return initialOutput;
 
-	return retryUntilValid(ctx, s, { outcome, collectCtx, finalize }, initialManifest.manifest);
+	return retryUntilValid(ctx, s, { outcome, collectCtx, finalize }, initialOutput.output);
 }
 
 /**
@@ -110,11 +110,8 @@ function buildCollectCtx(s: StageSession, branch: BranchEntry[], branchOffset: n
 	};
 }
 
-function wrapManifest(
-	s: StageSession,
-	parts: { kind: string; artifacts: readonly Artifact[]; data: unknown },
-): Manifest {
-	return finalizeManifest(parts, {
+function wrapOutput(s: StageSession, parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }): Output {
+	return finalizeOutput(parts, {
 		skill: s.skill,
 		stageNumber: s.state.lastAllocatedStageNumber + 1,
 		ts: nowIso(),
@@ -122,17 +119,17 @@ function wrapManifest(
 	});
 }
 
-type RunOutcomeResult = { kind: "ok"; manifest: Manifest } | { kind: "fatal"; message: string };
+type RunOutcomeResult = { kind: "ok"; output: Output } | { kind: "fatal"; message: string };
 
 /**
  * The collector → parser pipeline. When `parser` is omitted, the
- * manifest emits `kind: "artifacts"` with `data = artifacts` — a stage
+ * output emits `kind: "artifacts"` with `data = artifacts` — a stage
  * that only needs to enumerate doesn't have to write a parser.
  */
 async function runOutcome(
 	outcome: OutputSpec,
 	ctx: CollectCtx,
-	finalize: (parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }) => Manifest,
+	finalize: (parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }) => Output,
 ): Promise<RunOutcomeResult> {
 	const collected = await outcome.collector.collect(ctx);
 	if (collected.kind === "fatal") return collected;
@@ -140,7 +137,7 @@ async function runOutcome(
 	if (!outcome.parser) {
 		return {
 			kind: "ok",
-			manifest: finalize({ kind: "artifacts", artifacts: collected.artifacts, data: collected.artifacts }),
+			output: finalize({ kind: "artifacts", artifacts: collected.artifacts, data: collected.artifacts }),
 		};
 	}
 
@@ -148,7 +145,7 @@ async function runOutcome(
 	if (parsed.kind === "fatal") return parsed;
 	return {
 		kind: "ok",
-		manifest: finalize({
+		output: finalize({
 			kind: parsed.payload.kind,
 			artifacts: collected.artifacts,
 			data: parsed.payload.data,
@@ -166,33 +163,33 @@ async function runOutcome(
 function enforceCompletionContract(
 	stage: StageDef,
 	skill: string,
-	manifest: Manifest,
-): { kind: "ok"; manifest: Manifest } | { kind: "fatal"; message: string } {
-	if (stage.kind === "produces" && manifest.artifacts.length === 0) {
+	output: Output,
+): { kind: "ok"; output: Output } | { kind: "fatal"; message: string } {
+	if (stage.kind === "produces" && output.artifacts.length === 0) {
 		return {
 			kind: "fatal",
 			message: `${skill} finished without producing any artifact (collector returned an empty list)`,
 		};
 	}
-	return { kind: "ok", manifest };
+	return { kind: "ok", output };
 }
 
-function shouldValidateOutput(stage: StageDef, manifest: Manifest): boolean {
-	return !!(stage.outputSchema && manifest.data !== undefined);
+function shouldValidateOutput(stage: StageDef, output: Output): boolean {
+	return !!(stage.outputSchema && output.data !== undefined);
 }
 
 interface RetryDeps {
 	outcome: OutputSpec;
 	collectCtx: CollectCtx;
-	finalize: (parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }) => Manifest;
+	finalize: (parts: { kind: string; artifacts: readonly Artifact[]; data: unknown }) => Output;
 }
 
 async function retryUntilValid(
 	ctx: RunnerCtx,
 	s: StageSession,
 	deps: RetryDeps,
-	initial: Manifest,
-): Promise<ManifestProduction> {
+	initial: Output,
+): Promise<OutputProduction> {
 	const schema = s.stage.outputSchema!;
 	const maxRetries = Math.max(
 		MIN_VALIDATION_RETRIES,
@@ -203,8 +200,8 @@ async function retryUntilValid(
 		Math.min(s.stage.validateTimeoutMs ?? DEFAULT_VALIDATION_RETRY_TIMEOUT_MS, MAX_VALIDATION_RETRY_TIMEOUT_MS),
 	);
 
-	let manifest = initial;
-	const initialValidation = await validateOrFatal(schema, manifest.data, s.skill, timeoutMs);
+	let output = initial;
+	const initialValidation = await validateOrFatal(schema, output.data, s.skill, timeoutMs);
 	if (initialValidation.kind === "fatal") return initialValidation;
 	let result = initialValidation.result;
 	let attempts = 0;
@@ -222,21 +219,21 @@ async function retryUntilValid(
 		const retryCtx: CollectCtx = { ...deps.collectCtx, branch: retryBranch };
 		const reRun = await runOutcome(deps.outcome, retryCtx, deps.finalize);
 		if (reRun.kind === "fatal") return reRun;
-		const contract = enforceCompletionContract(s.stage, s.skill, reRun.manifest);
+		const contract = enforceCompletionContract(s.stage, s.skill, reRun.output);
 		if (contract.kind === "fatal") return contract;
 
-		manifest = contract.manifest;
-		const reValidation = await validateOrFatal(schema, manifest.data, s.skill, timeoutMs);
+		output = contract.output;
+		const reValidation = await validateOrFatal(schema, output.data, s.skill, timeoutMs);
 		if (reValidation.kind === "fatal") return reValidation;
 		result = reValidation.result;
 	}
 
 	if (!result.valid) return validationExhausted(result.failures);
-	return { kind: "ok", manifest };
+	return { kind: "ok", output };
 }
 
 /**
- * Translate a thrown `validateManifestData` (user-authored schemas may throw
+ * Translate a thrown `validateOutputData` (user-authored schemas may throw
  * synchronously or reject their Promise) into the canonical fatal-extraction
  * outcome. Async schemas are guarded by `timeoutMs` — the same
  * `validateTimeoutMs` budget that bounds the agent-settle step on a
@@ -250,7 +247,7 @@ async function validateOrFatal(
 ): Promise<{ kind: "ok"; result: ValidationResult } | { kind: "fatal"; message: string }> {
 	try {
 		const result = await withTimeout(
-			Promise.resolve(validateManifestData(schema, data)),
+			Promise.resolve(validateOutputData(schema, data)),
 			timeoutMs,
 			ERR_SCHEMA_TIMEOUT("outputSchema", timeoutMs),
 		);
@@ -277,7 +274,7 @@ async function askAgentToFix(
 	);
 }
 
-function validationExhausted(failures: SchemaValidationFailure[]): ManifestProduction {
+function validationExhausted(failures: SchemaValidationFailure[]): OutputProduction {
 	const failureSummary = failures.map((f) => `${f.path}: ${f.message}`).join("; ");
 	return { kind: "validation-exhausted", failureSummary };
 }

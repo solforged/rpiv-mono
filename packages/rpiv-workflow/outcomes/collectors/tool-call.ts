@@ -39,7 +39,7 @@ export interface ToolCallCollectorOpts {
 	 * Map a matched tool call to an Artifact. Return undefined to skip
 	 * (useful when the tool's input doesn't carry a path, or the path
 	 * fails a sanity check). The returned Artifact's handle is what
-	 * downstream stages see on `manifest.artifacts`.
+	 * downstream stages see on `output.artifacts`.
 	 */
 	toArtifact(tc: ToolCall): Artifact | undefined;
 }

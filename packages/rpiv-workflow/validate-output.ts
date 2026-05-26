@@ -1,7 +1,8 @@
 /**
- * Manifest validation against a `StageSchema` (Standard Schema v1 under the
- * hood). The schema-library boundary is `~standard.validate`; users may bring
- * Zod / Valibot / ArkType / TypeBox (wrapped via `typebox-adapter.ts:typeboxSchema`).
+ * Output-data validation against a `StageSchema` (Standard Schema v1 under
+ * the hood). The schema-library boundary is `~standard.validate`; users may
+ * bring Zod / Valibot / ArkType / TypeBox (wrapped via
+ * `typebox-adapter.ts:typeboxSchema`).
  */
 
 import type { StageSchema } from "./api.js";
@@ -50,7 +51,7 @@ export const MIN_VALIDATION_RETRY_TIMEOUT_MS = 1_000;
  * microtask) and async schemas (I/O-backed checks, async-by-default libs
  * like ArkType) round-trip without a sync-only escape hatch.
  */
-export function validateManifestData(schema: StageSchema, data: unknown): ValidationResult | Promise<ValidationResult> {
+export function validateOutputData(schema: StageSchema, data: unknown): ValidationResult | Promise<ValidationResult> {
 	const result = schema["~standard"].validate(data);
 	if (result instanceof Promise) {
 		return result.then((resolved) => buildResult(resolved, data));

@@ -1,6 +1,6 @@
 /**
  * Bundled parsers — host-agnostic primitives that turn collected
- * artifacts into the typed `manifest.data` channel downstream stages
+ * artifacts into the typed `output.data` channel downstream stages
  * see. Re-exported through `outcomes/index.ts`.
  *
  * Format-specific parsers (`frontmatterParser` for markdown-with-YAML)

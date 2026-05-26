@@ -17,10 +17,10 @@
  */
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { OutputSpec } from "./manifest.js";
+import type { OutputSpec } from "./output.js";
 import type { RunState } from "./types.js";
 
-export type { OutputSpec } from "./manifest.js";
+export type { OutputSpec } from "./output.js";
 
 /**
  * Schema attached to a stage's `outputSchema` / `inputSchema`. Structurally
@@ -67,7 +67,7 @@ export const SESSION_POLICIES = ["fresh", "continue"] as const;
 export type SessionPolicy = (typeof SESSION_POLICIES)[number];
 
 /**
- * What happens when a stage's `outputSchema` rejects the extracted manifest:
+ * What happens when a stage's `outputSchema` rejects the extracted output:
  * - `"retry"` — re-invoke the stage up to `maxRetries`, threading the
  *   schema's issues back to the agent via a retry prompt.
  * - `"halt"` — record a terminal failure on the first rejection.
@@ -133,11 +133,11 @@ export interface FanoutUnit {
 
 /**
  * Runtime context handed to an `EdgeFn`. The sole context shape for both
- * frontmatter-reading (`definePredicate`) and state-only
+ * data-reading (`definePredicate`) and state-only
  * (`defineStatePredicate`) authoring paths.
  */
 export interface EdgeContext {
-	manifest: import("./manifest.js").Manifest | undefined;
+	output: import("./output.js").Output | undefined;
 	state: Readonly<RunState>;
 }
 
@@ -149,7 +149,7 @@ export interface EdgeContext {
 type EdgePredicate = (ctx: EdgeContext) => string;
 
 /**
- * A function that picks the next stage name given current state + manifest.
+ * A function that picks the next stage name given current state + output.
  * Optional `targets` field lets graph introspectors enumerate possible
  * returns — `threshold` and other built-in predicate builders populate it.
  */
@@ -186,7 +186,7 @@ export interface StageDef<TIn = unknown, TOut = unknown> {
 	sessionPolicy: SessionPolicy;
 	outcome?: OutputSpec;
 	/**
-	 * Standard Schema v1 validator run against `manifest.data` after the
+	 * Standard Schema v1 validator run against `output.data` after the
 	 * stage's `OutputSpec` produces it (the typed record parsed out of the
 	 * agent's emitted artifact). On rejection the runner honours
 	 * `onInvalid` ("retry" by default, up to `maxRetries`; "halt" to fail
@@ -195,7 +195,7 @@ export interface StageDef<TIn = unknown, TOut = unknown> {
 	outputSchema?: StageSchema<unknown, TOut>;
 	/**
 	 * Standard Schema v1 validator run against the inherited upstream
-	 * `manifest.data` before the stage runs. A rejection halts the
+	 * `output.data` before the stage runs. A rejection halts the
 	 * chain immediately (no retry path — the upstream stage is already
 	 * frozen).
 	 */
@@ -269,14 +269,14 @@ export function acts(overrides: Partial<StageDef> = {}): StageDef {
 // ===========================================================================
 
 /**
- * Marker attached to EdgeFns that read from `manifest.data`.
+ * Marker attached to EdgeFns that read from `output.data`.
  * `validate-workflow.ts:checkPredicateSchemas` warns when a node feeds a marked
- * predicate but has no `outputSchema` — routing on un-validated frontmatter
+ * predicate but has no `outputSchema` — routing on un-validated data
  * is the I6-class defect from the bcc34bc review.
  *
  * Default is "marked": `definePredicate` auto-marks. Hand-roll
  * `defineStatePredicate` for the rare predicate that consults only `state`
- * or `manifest.meta` — that's the opt-out path. The previous direction
+ * or `output.meta` — that's the opt-out path. The previous direction
  * (opt-in marker, default unmarked) silently exempted every user-authored
  * predicate from the lint.
  *
@@ -287,8 +287,8 @@ export const READS_FRONTMATTER: unique symbol = Symbol.for("rpiv.workflow.readsF
 /**
  * True iff `fn` was wrapped by `definePredicate` (which sets the
  * `READS_FRONTMATTER` marker). The validator uses this to decide whether an
- * `EdgeFn`'s source node must declare an `outputSchema` — frontmatter-reading
- * predicates need a validated manifest shape; state-only predicates don't.
+ * `EdgeFn`'s source node must declare an `outputSchema` — data-reading
+ * predicates need a validated output shape; state-only predicates don't.
  *
  * Centralises the double-cast required to symbol-key into a function object
  * so consumers don't sprinkle `as unknown as Record<symbol, …>` at every
@@ -302,7 +302,7 @@ export function marksFrontmatter(fn: EdgeFn): boolean {
  * Shared body for `definePredicate` + `defineStatePredicate`. Validates the
  * `targets` invariant, attaches `.targets` to the function, and (when
  * `marker` is true) sets the `READS_FRONTMATTER` symbol so the load-time
- * predicate-schema lint can distinguish frontmatter-reading predicates
+ * predicate-schema lint can distinguish data-reading predicates
  * from state-only ones. `factory` is used only to brand the throw message
  * so the offending call site is obvious in stack traces.
  */
@@ -325,8 +325,8 @@ function wrapEdgeFn(factory: string, targets: readonly string[], fn: EdgePredica
  *
  * Auto-marks the returned EdgeFn with `READS_FRONTMATTER` so the
  * predicate-schema lint fires when the source node has no `outputSchema`.
- * If the predicate consults only `state` / `manifest.meta` and never reads
- * `manifest.data`, use `defineStatePredicate` instead.
+ * If the predicate consults only `state` / `output.meta` and never reads
+ * `output.data`, use `defineStatePredicate` instead.
  *
  * Throws if `targets` is empty — a predicate that can't return anything
  * declared is by definition a bug.
@@ -337,29 +337,29 @@ export function definePredicate(targets: readonly string[], fn: EdgePredicate): 
 
 /**
  * Like `definePredicate` but for predicates that consult only `state` or
- * `manifest.meta` and never read `manifest.data`. Omits the
+ * `output.meta` and never read `output.data`. Omits the
  * `READS_FRONTMATTER` marker so `checkPredicateSchemas` doesn't warn the
  * source node lacks an `outputSchema` (a state-derived predicate has no
- * frontmatter-shape contract to validate).
+ * data-shape contract to validate).
  */
 export function defineStatePredicate(targets: readonly string[], fn: EdgePredicate): EdgeFn {
 	return wrapEdgeFn("defineStatePredicate", targets, fn, false);
 }
 
 /**
- * Internal body for `threshold`. Reads `manifest.data[field]`, coerces via
+ * Internal body for `threshold`. Reads `output.data[field]`, coerces via
  * `Number(...)`, and picks `ifAbove` / `ifBelow` on strict greater-than. The
  * caller-facing missing-field policy lives in `threshold`'s JSDoc.
  */
 const predicateThreshold =
 	(field: string, n: number, ifAbove: string, ifBelow: string): EdgePredicate =>
-	({ manifest }) => {
-		const value = Number((manifest?.data as Record<string, unknown>)?.[field]);
+	({ output }) => {
+		const value = Number((output?.data as Record<string, unknown>)?.[field]);
 		return value > n ? ifAbove : ifBelow;
 	};
 
 /**
- * Routes to `ifAbove` when `Number(manifest.data[field]) > n`; otherwise to
+ * Routes to `ifAbove` when `Number(output.data[field]) > n`; otherwise to
  * `ifBelow`. Built on `definePredicate` so the contract is enforced
  * structurally; the `READS_FRONTMATTER` marker is inherited from
  * `definePredicate`.
@@ -373,8 +373,8 @@ const predicateThreshold =
  * explicitly via `definePredicate`:
  *
  * ```ts
- * definePredicate(["a","b"], ({ manifest }) =>
- *   Number((manifest?.data as Record<string, unknown>)?.foo ?? -1) > 0 ? "a" : "b"
+ * definePredicate(["a","b"], ({ output }) =>
+ *   Number((output?.data as Record<string, unknown>)?.foo ?? -1) > 0 ? "a" : "b"
  * )
  * ```
  */

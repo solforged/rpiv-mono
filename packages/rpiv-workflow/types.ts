@@ -3,11 +3,11 @@
  *
  *  - `RunContext` — per-run carry (cwd, runId, workflow, state, visited, host,
  *    maxBackwardJumps). Read by every layer; mutated only by the runner.
- *  - `RunState` — mutable bookkeeping (manifest, counters, telemetry,
+ *  - `RunState` — mutable bookkeeping (output, counters, telemetry,
  *    termination). Read by every layer; mutated by the runner + the audit
  *    layer. Always read the chain's primary artifact via
  *    `currentPrimaryArtifact(state)` (internal-utils.ts) — it prefers
- *    `manifest.artifacts[0]` and falls back to `fallbackPrimaryArtifact`.
+ *    `output.artifacts[0]` and falls back to `fallbackPrimaryArtifact`.
  *  - `RunnerCtx` — Pi command ctx augmented with idle-await guarantees;
  *    threaded from `withSession` callbacks down through stage/phase helpers.
  *
@@ -23,7 +23,7 @@
 import type { StageDef, Workflow } from "./api.js";
 import type { Artifact } from "./handle.js";
 import type { WorkflowCommandHost, WorkflowHost } from "./host.js";
-import type { Manifest } from "./manifest.js";
+import type { Output } from "./output.js";
 
 /**
  * Per-stage runtime ctx. Alias for `WorkflowCommandHost` (the port) —
@@ -45,7 +45,7 @@ export interface RunState {
 	 * inherits as input. Updated ONLY by produces stages whose
 	 * collector returned at least one artifact (the first becomes the new
 	 * primary). Side-effect stages (commit, side-effect) record their own
-	 * manifest but do not touch this slot — preserves the "commit
+	 * output but do not touch this slot — preserves the "commit
 	 * inherits the prior chain's artifact" semantic without forcing
 	 * side-effect collectors to re-emit the prior list.
 	 *
@@ -54,7 +54,7 @@ export interface RunState {
 	 * accessor.
 	 */
 	primaryArtifact: Artifact | undefined;
-	manifest: Manifest | undefined;
+	output: Output | undefined;
 	/** Stages whose JSONL row landed on disk. */
 	stagesCompleted: number;
 	/** Most recently allocated stageNumber. Advances on every recordStage call. */

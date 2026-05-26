@@ -133,8 +133,8 @@ describe("[I6] code-review predicate must not silently route to commit on missin
 		const mid = findWorkflow("mid");
 		const schema = mid.stages["code-review"]?.outputSchema;
 		if (!schema) throw new Error("code-review outputSchema missing — fix I6 first");
-		const { validateManifestData } = await import("@juicesharp/rpiv-workflow");
-		const result = await validateManifestData(schema, {});
+		const { validateOutputData } = await import("@juicesharp/rpiv-workflow");
+		const result = await validateOutputData(schema, {});
 		expect(result.valid).toBe(false);
 	});
 
@@ -236,7 +236,7 @@ describe("[I3] recordStage signals success and advances stageNumber monotonicall
 	const freshState = (): RunState => ({
 		originalInput: "",
 		primaryArtifact: undefined,
-		manifest: undefined,
+		output: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,
 		telemetry: {

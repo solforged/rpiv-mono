@@ -24,7 +24,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StageDef, StageSchema } from "./api.js";
 import { fs as fsHandle } from "./handle.js";
 import { currentPrimaryArtifact } from "./internal-utils.js";
-import type { CollectCtx, OutputSpec } from "./manifest.js";
 import {
 	ERR_VALIDATION_FAILED,
 	MSG_STAGE_ABORTED,
@@ -34,10 +33,11 @@ import {
 	MSG_VALIDATION_EXHAUSTED,
 	MSG_VALIDATION_RETRY,
 } from "./messages.js";
+import type { CollectCtx, OutputSpec } from "./output.js";
 import { runFanoutSession, runStageSession } from "./sessions/index.js";
 import { typeboxSchema } from "./typebox-adapter.js";
 import type { FanoutSession, RunnerCtx, RunState, StageSession } from "./types.js";
-import { MAX_VALIDATION_RETRIES, MAX_VALIDATION_RETRY_TIMEOUT_MS } from "./validate-manifest.js";
+import { MAX_VALIDATION_RETRIES, MAX_VALIDATION_RETRY_TIMEOUT_MS } from "./validate-output.js";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -47,7 +47,7 @@ import { MAX_VALIDATION_RETRIES, MAX_VALIDATION_RETRY_TIMEOUT_MS } from "./valid
 const freshRunState = (overrides: Partial<RunState> = {}): RunState => ({
 	originalInput: "x",
 	primaryArtifact: undefined,
-	manifest: undefined,
+	output: undefined,
 	stagesCompleted: 0,
 	lastAllocatedStageNumber: 0,
 	telemetry: {
@@ -131,7 +131,7 @@ const readStageRows = (cwd: string): Array<Record<string, unknown>> => {
 };
 
 // ---------------------------------------------------------------------------
-// Group 1 — retry-loop coverage (retryUntilValid + extractAndValidateManifest)
+// Group 1 — retry-loop coverage (retryUntilValid + extractAndValidateOutput)
 // ---------------------------------------------------------------------------
 
 describe("sessions — validation retry loop", () => {
@@ -616,9 +616,9 @@ describe("sessions — outcome resolution", () => {
 
 		expect(onSuccess).toHaveBeenCalledTimes(1);
 		// Side-effect with no collector output → empty artifacts list on the
-		// stage's manifest, but the chain's primaryArtifact rolling slot
+		// stage's output, but the chain's primaryArtifact rolling slot
 		// stays put so the next stage inherits the upstream input.
-		expect(state.manifest?.artifacts).toEqual([]);
+		expect(state.output?.artifacts).toEqual([]);
 		expect(state.primaryArtifact).toBe(prior);
 		expect(currentPrimaryArtifact(state)).toBe(prior);
 	});
@@ -885,7 +885,7 @@ describe("sessions — success persistence", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("side-effect with a collector emitting one artifact records the manifest but does NOT advance the chain primary", async () => {
+	it("side-effect with a collector emitting one artifact records the output but does NOT advance the chain primary", async () => {
 		const chain = createMockSessionChain({
 			cwd: tmpDir,
 			steps: [{ branch: [mockAssistantMessage("done")] }],
@@ -893,7 +893,7 @@ describe("sessions — success persistence", () => {
 		const state = freshRunState();
 
 		// Side-effect outcome that produces an artifact (e.g. a commit-style
-		// stage). manifest.artifacts records it; primaryArtifact stays
+		// stage). output.artifacts records it; primaryArtifact stays
 		// undefined because only produces stages advance the chain
 		// input.
 		const recorded = ".rpiv/artifacts/research/from-collector.md";
@@ -916,7 +916,7 @@ describe("sessions — success persistence", () => {
 			}),
 		);
 
-		expect(state.manifest?.artifacts[0]?.handle).toEqual({ kind: "fs", path: recorded });
+		expect(state.output?.artifacts[0]?.handle).toEqual({ kind: "fs", path: recorded });
 		// Chain primary stays put — side-effect never advances the rolling slot.
 		expect(state.primaryArtifact).toBeUndefined();
 	});

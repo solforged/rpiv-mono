@@ -27,10 +27,10 @@ import type {
 const execFileAsync = promisify(execFile);
 
 /**
- * Manifest data shape produced by `gitCommitParser` — co-located with
- * the outcome that emits it. The `GitCommitManifest` alias in
- * `manifest.ts` re-imports this type so downstream stages can narrow on
- * `manifest.kind === "git-commit"` without reaching into per-outcome
+ * Output data shape produced by `gitCommitParser` — co-located with
+ * the outcome that emits it. The `GitCommitOutput` alias in
+ * `output.ts` re-imports this type so downstream stages can narrow on
+ * `output.kind === "git-commit"` without reaching into per-outcome
  * paths.
  */
 export interface GitCommitData {
@@ -145,7 +145,7 @@ export const gitCommitParser: ArtifactParser<GitHeadSnapshot | undefined, "git-c
  * `gitHeadSnapshot` snapshot internally) with `gitCommitParser`.
  *
  * Concrete generics: snapshot is `GitHeadSnapshot | undefined`
- * (undefined when not in a git repo), manifest kind is `"git-commit"`,
+ * (undefined when not in a git repo), output kind is `"git-commit"`,
  * data is `GitCommitData`.
  */
 export const gitCommitOutcome: OutputSpec<GitHeadSnapshot | undefined, "git-commit", GitCommitData> = {

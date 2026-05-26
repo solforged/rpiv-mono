@@ -123,7 +123,7 @@ describe("threshold", () => {
 
 	const ctxWithCount = (n: number) =>
 		({
-			manifest: {
+			output: {
 				kind: "artifact-md",
 				artifacts: [],
 				data: { severeIssueCount: n },
@@ -143,7 +143,7 @@ describe("threshold", () => {
 	it("picks ifBelow when value is missing (treats as 0)", () => {
 		expect(
 			pick({
-				manifest: {
+				output: {
 					kind: "artifact-md",
 					artifacts: [],
 					data: {},
@@ -154,14 +154,14 @@ describe("threshold", () => {
 		).toBe("commit");
 	});
 
-	it("picks ifBelow when manifest is undefined (treats as 0)", () => {
-		expect(pick({ manifest: undefined, state: {} as never })).toBe("commit");
+	it("picks ifBelow when output is undefined (treats as 0)", () => {
+		expect(pick({ output: undefined, state: {} as never })).toBe("commit");
 	});
 
 	it("picks ifBelow when value coerces to NaN (non-numeric field)", () => {
 		expect(
 			pick({
-				manifest: {
+				output: {
 					kind: "artifact-md",
 					artifacts: [],
 					data: { severeIssueCount: "not a number" },
@@ -189,11 +189,11 @@ describe("definePredicate", () => {
 
 	it("preserves the underlying function's runtime behavior", () => {
 		const fn = definePredicate(["good", "bad"], (ctx) =>
-			(ctx.manifest?.data as { ok?: boolean })?.ok ? "good" : "bad",
+			(ctx.output?.data as { ok?: boolean })?.ok ? "good" : "bad",
 		);
 		expect(
 			fn({
-				manifest: {
+				output: {
 					kind: "test",
 					artifacts: [],
 					data: { ok: true },

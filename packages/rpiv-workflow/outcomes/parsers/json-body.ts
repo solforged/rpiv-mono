@@ -15,7 +15,7 @@
  *
  * `kind` is `"json"`; `data` is the parsed value (typed `unknown` —
  * narrow it via the stage's `outputSchema` for typed downstream
- * narrowing through `manifest.data`).
+ * narrowing through `output.data`).
  */
 
 import { existsSync, readFileSync } from "node:fs";

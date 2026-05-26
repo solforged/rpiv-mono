@@ -14,7 +14,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { CollectCtx, ParseCtx, SnapshotCtx } from "../manifest.js";
+import type { CollectCtx, ParseCtx, SnapshotCtx } from "../output.js";
 import {
 	type GitHeadSnapshot,
 	gitCommitCollector,
@@ -46,7 +46,7 @@ const snapshotCtx = (cwd: string): SnapshotCtx => ({
 	state: {
 		originalInput: "",
 		primaryArtifact: undefined,
-		manifest: undefined,
+		output: undefined,
 		stagesCompleted: 0,
 		lastAllocatedStageNumber: 0,
 		telemetry: {
@@ -70,7 +70,7 @@ const collectCtx = (cwd: string, snapshot: GitHeadSnapshot | undefined): Collect
 
 /**
  * Run the full outcome (collector → parser) end-to-end, returning the
- * commit data the parser produced. Mirrors what `produceAndValidateManifest`
+ * commit data the parser produced. Mirrors what `produceAndValidateOutput`
  * does in the runner.
  */
 const runOutcome = async (cwd: string, snapshot: GitHeadSnapshot | undefined) => {

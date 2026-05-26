@@ -1,5 +1,5 @@
 /**
- * Tests for `finalizeManifest` — the single source of manifest metadata
+ * Tests for `finalizeOutput` — the single source of output metadata
  * authorship in the workflow runtime. Every outcome (collector +
  * optional parser) flows through this function on its way to disk + the
  * next stage; the invariants this file pins are: ctx wins over payload
@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { fs } from "./handle.js";
-import { finalizeManifest } from "./manifest.js";
+import { finalizeOutput } from "./output.js";
 
 const baseCtx = {
 	skill: "research",
@@ -19,9 +19,9 @@ const baseCtx = {
 	runId: "2026-05-24_08-00-00-abcd",
 };
 
-describe("finalizeManifest", () => {
+describe("finalizeOutput", () => {
 	it("stamps every meta field from ctx (skill, stageNumber, ts, runId)", () => {
-		const m = finalizeManifest(
+		const m = finalizeOutput(
 			{
 				kind: "artifact-md",
 				artifacts: [{ handle: fs(".rpiv/artifacts/research/r.md"), role: "primary" }],
@@ -39,14 +39,14 @@ describe("finalizeManifest", () => {
 
 	it("forwards `kind`, `artifacts`, and `data` from the input unchanged", () => {
 		const artifacts = [{ handle: fs(".rpiv/artifacts/prior/x.md") }];
-		const m = finalizeManifest({ kind: "git-commit", artifacts, data: { sha: "deadbeef" } }, baseCtx);
+		const m = finalizeOutput({ kind: "git-commit", artifacts, data: { sha: "deadbeef" } }, baseCtx);
 		expect(m.kind).toBe("git-commit");
 		expect(m.data).toEqual({ sha: "deadbeef" });
 		expect(m.artifacts).toBe(artifacts);
 	});
 
 	it("accepts an empty `artifacts` list (side-effect / passthrough stages)", () => {
-		const m = finalizeManifest({ kind: "side-effect", artifacts: [], data: {} }, baseCtx);
+		const m = finalizeOutput({ kind: "side-effect", artifacts: [], data: {} }, baseCtx);
 		expect(m.artifacts).toEqual([]);
 		expect(m.kind).toBe("side-effect");
 	});
@@ -55,10 +55,7 @@ describe("finalizeManifest", () => {
 		// Collectors/parsers must NOT be able to spoof meta.skill — the runner sets it
 		// from the resolved stage. Smuggling a `skill` key inside `data` must
 		// not affect meta.
-		const m = finalizeManifest(
-			{ kind: "artifact-md", artifacts: [], data: { skill: "evil-skill", foo: 1 } },
-			baseCtx,
-		);
+		const m = finalizeOutput({ kind: "artifact-md", artifacts: [], data: { skill: "evil-skill", foo: 1 } }, baseCtx);
 		expect(m.meta.skill).toBe("research");
 		// The data-side `skill` field is preserved — it's just data; the consumer
 		// can read it but it never reaches meta.
@@ -67,8 +64,8 @@ describe("finalizeManifest", () => {
 
 	it("preserves payload data structurally — no defensive clone, no field stripping", () => {
 		const data = { nested: { deep: [1, 2, 3] } };
-		const m = finalizeManifest({ kind: "artifact-md", artifacts: [], data }, baseCtx);
-		// Same object reference — finalizeManifest does NOT clone.
+		const m = finalizeOutput({ kind: "artifact-md", artifacts: [], data }, baseCtx);
+		// Same object reference — finalizeOutput does NOT clone.
 		// Downstream callers that need immutability MUST clone themselves;
 		// this keeps the hot path cheap.
 		expect(m.data).toBe(data);

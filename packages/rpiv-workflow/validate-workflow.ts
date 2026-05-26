@@ -30,7 +30,7 @@ import {
 	MAX_VALIDATION_RETRY_TIMEOUT_MS,
 	MIN_VALIDATION_RETRIES,
 	MIN_VALIDATION_RETRY_TIMEOUT_MS,
-} from "./validate-manifest.js";
+} from "./validate-output.js";
 
 // ===========================================================================
 // Issue shape
@@ -270,7 +270,7 @@ function checkFanoutContinueInvariant(
 }
 
 /**
- * Predicate edges that read `manifest.data[field]` (i.e. `definePredicate`,
+ * Predicate edges that read `output.data[field]` (i.e. `definePredicate`,
  * `threshold`, and any future factory that auto-attaches the
  * `READS_FRONTMATTER` marker) should fire on data the source stage has
  * validated against its `outputSchema`. If the schema is absent, the
@@ -278,7 +278,7 @@ function checkFanoutContinueInvariant(
  * field — routing decisions silently default.
  *
  * Predicates authored via `defineStatePredicate` consult only `state` or
- * `manifest.meta` and carry no marker — exempt from this lint.
+ * `output.meta` and carry no marker — exempt from this lint.
  */
 function checkPredicateSchemas(w: Workflow, issues: WorkflowValidationIssue[]): void {
 	for (const [from, target] of Object.entries(w.edges)) {
@@ -290,7 +290,7 @@ function checkPredicateSchemas(w: Workflow, issues: WorkflowValidationIssue[]): 
 				warning(
 					w.name,
 					from,
-					`predicate edge from "${from}" reads manifest.data but the stage has no outputSchema — routing may fire on un-validated frontmatter`,
+					`predicate edge from "${from}" reads output.data but the stage has no outputSchema — routing may fire on un-validated data`,
 				),
 			);
 		}
