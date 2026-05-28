@@ -146,7 +146,8 @@ describe("formatWorkflowList", () => {
 	it("omits the description field when workflow has no description", () => {
 		const out = formatWorkflowList(baseLoaded());
 		const midLine = out.split("\n").find((l) => l.trimStart().startsWith("mid")) ?? "";
-		expect(midLine.trim()).toMatch(/^mid \d stages \[built-in\] \(default\)$/);
+		// Column padding may insert multi-space separators between fields.
+		expect(midLine.trim()).toMatch(/^mid\s+\d+ stages\s+\[built-in\]\s+\(default\)$/);
 	});
 });
 

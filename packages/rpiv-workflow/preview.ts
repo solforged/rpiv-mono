@@ -22,17 +22,39 @@ function truncateDescription(desc: string, maxLen = 50): string {
 
 /** No-args listing: every loaded workflow, its stage count, and its source. */
 export function formatWorkflowList(loaded: LoadedWorkflows): string {
-	const rows = loaded.workflows.map((w) => {
+	const items = loaded.workflows.map((w) => {
 		const layer = loaded.workflowSources.get(w.name) ?? "built-in";
-		const stages = Object.keys(w.stages).length;
-		const tags = [`[${renderConfigLayer(layer)}]`];
-		if (w.name === loaded.default) tags.push("(default)");
-		const desc = w.description ? ` ${truncateDescription(w.description)}` : "";
-		return ` ${w.name} ${stages} stages ${tags.join(" ")}${desc}`;
+		return {
+			name: w.name,
+			stages: Object.keys(w.stages).length,
+			layerTag: `[${renderConfigLayer(layer)}]`,
+			defaultTag: w.name === loaded.default ? "(default)" : "",
+			description: w.description ? truncateDescription(w.description) : "",
+		};
+	});
+
+	// Column widths computed across the rendered set so name / stages / layer /
+	// default-tag align vertically — same posture as `formatStageRow`'s padEnd
+	// usage in the details view.
+	const widths = {
+		name: Math.max(0, ...items.map((i) => i.name.length)),
+		stages: Math.max(0, ...items.map((i) => String(i.stages).length)),
+		layerTag: Math.max(0, ...items.map((i) => i.layerTag.length)),
+		defaultTag: Math.max(0, ...items.map((i) => i.defaultTag.length)),
+	};
+
+	const rows = items.map((i) => {
+		const name = i.name.padEnd(widths.name);
+		const stages = `${String(i.stages).padStart(widths.stages)} stages`;
+		const layerTag = i.layerTag.padEnd(widths.layerTag);
+		const defaultTag = i.defaultTag.padEnd(widths.defaultTag);
+		const desc = i.description ? `  ${i.description}` : "";
+		return `  ${name}  ${stages}  ${layerTag}  ${defaultTag}${desc}`.trimEnd();
 	});
 
 	return [
 		"Available workflows:",
+		"",
 		...rows,
 		"",
 		formatLayerBanner(loaded.layers),
